@@ -17,6 +17,7 @@ Khi kết quả là suspect/reject:
       data/logs/ng_images/<product_id>/<YYYY-MM-DD>/<SN>.jpg
     - log tra cứu theo ngày ghi vào data/logs/ng_log/<product_id>/<YYYY-MM-DD>.csv
 """
+import base64
 import io
 import sys
 import uuid
@@ -25,6 +26,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
 from src.decision.decision import decide
@@ -35,6 +38,19 @@ from src.inference.visualize import draw_defect_box
 from src.utils.config import list_products, load_product_config, resolve_path
 
 app = FastAPI(title="Vision QC API")
+
+# Cho phép giao diện web (dashboard/) gọi API dù mở từ địa chỉ khác trên cùng
+# mạng nội bộ nhà máy. Nếu triển khai ra ngoài internet, nên giới hạn lại
+# allow_origins thay vì để "*".
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+_DASHBOARD_DIR = Path(__file__).resolve().parents[1] / "dashboard"
+app.mount("/ui", StaticFiles(directory=str(_DASHBOARD_DIR), html=True), name="ui")
 _engines: dict[str, PatchCoreEngine] = {}
 
 
@@ -77,12 +93,13 @@ async def inspect(product_id: str, file: UploadFile = File(...),
     }
 
     if decision.value != "pass":
-        # Lưu vào suspect/ để dùng cho lần retrain sau (dữ liệu huấn luyện)
         fb.save_suspect(product_id, saved_path)
-        # Khoanh đỏ vùng lỗi + lưu log NG theo ngày, đặt tên theo SN (dữ liệu tra vết)
         annotated = draw_defect_box(image, result["heatmap"], result["grid"], threshold)
         ng_path = ng_logger.save_ng(product_id, annotated, serial, result["score"], threshold, decision.value)
         response["ng_image_saved_to"] = str(ng_path)
+        buf = io.BytesIO()
+        annotated.save(buf, format="JPEG", quality=90)
+        response["annotated_image_base64"] = base64.b64encode(buf.getvalue()).decode("ascii")
 
     return response
 
@@ -147,6 +164,9 @@ async def return_scan(product_id: str, file: UploadFile = File(...),
         fb.confirm_feedback(product_id, saved_path, is_good=False)
         response["action"] = "Tự động thêm vào dữ liệu lỗi đã xác nhận — ưu tiên cao cho lần retrain tới."
         response["ng_image_saved_to"] = str(ng_path)
+        buf = io.BytesIO()
+        annotated.save(buf, format="JPEG", quality=90)
+        response["annotated_image_base64"] = base64.b64encode(buf.getvalue()).decode("ascii")
     else:
         response["action"] = ("Không có bằng chứng lỗi nhìn thấy được. Nếu khách xác nhận sản phẩm thực sự lỗi, "
                                "dùng POST /feedback để gán nhãn thủ công (khả năng lỗi chức năng hoặc hư hỏng vận chuyển).")

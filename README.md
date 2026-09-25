@@ -1,5 +1,18 @@
 # AI Vision QC — Khung dự án đa sản phẩm
 
+## Giao diện web có camera trực tiếp
+
+```bash
+uvicorn api.app:app --reload --port 8000
+```
+
+Mở trình duyệt vào **http://127.0.0.1:8000/ui/** — giao diện cho phép:
+- Bật webcam/camera, xem hình trực tiếp
+- Chọn sản phẩm, nhập/quét mã SN, bấm "Chụp & Kiểm tra"
+- Thấy ngay ảnh đã khoanh đỏ vùng lỗi (nếu có) và kết quả đạt/nghi ngờ/lỗi
+- Chuyển sang tab "Quét hàng trả về" để đối chiếu theo mã SN (xem mục bên dưới)
+- Xác nhận Tốt/Lỗi ngay trên giao diện để AI học tiếp
+
 ## Đối chiếu 2 lần quét: xuất hàng vs khách trả về (vòng lặp tự học chính)
 
 ```

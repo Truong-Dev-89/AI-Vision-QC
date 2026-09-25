@@ -66,27 +66,54 @@ class PatchCoreEngine:
         _, c, h, w = fmap.shape
         return fmap.permute(0, 2, 3, 1).reshape(h * w, c).cpu()
 
-    def build_memory_bank(self, image_paths: list[Path], coreset_size: int = 4000,
-                           seed: int = 0) -> None:
-        """Trích đặc trưng từ toàn bộ ảnh tốt, nén ngân hàng bằng lấy mẫu ngẫu
-        nhiên nếu quá lớn (coreset subsampling đơn giản hóa) để so khớp vẫn nhanh."""
+    def build_memory_bank(self, image_paths: list[Path], coreset_size: int = 2000,
+                           candidate_pool: int = 8000, seed: int = 0) -> None:
+        """Xây ngân hàng đặc trưng bằng GREEDY CORESET SUBSAMPLING — đúng kỹ
+        thuật trong bài báo gốc PatchCore, thay vì lấy mẫu ngẫu nhiên đơn giản.
+
+        Greedy coreset chọn lần lượt điểm CÀNG XA các điểm đã chọn càng tốt
+        (farthest-point sampling), nhờ vậy ngân hàng nhỏ vẫn phủ đều toàn bộ
+        không gian đặc trưng, không bị lệch về vùng có nhiều ảnh giống nhau.
+
+        Vì so khoảng cách với toàn bộ hàng chục nghìn patch rất chậm, bước đầu
+        lấy mẫu ngẫu nhiên xuống `candidate_pool` ứng viên, rồi mới chạy
+        greedy coreset trên tập ứng viên đó xuống `coreset_size` cuối cùng.
+        """
         chunks = [self.extract_patch_embeddings(Image.open(p)) for p in image_paths]
         bank = torch.cat(chunks, dim=0)
-        if bank.shape[0] > coreset_size:
-            rng = random.Random(seed)
-            idx = rng.sample(range(bank.shape[0]), coreset_size)
+
+        rng = random.Random(seed)
+        if bank.shape[0] > candidate_pool:
+            idx = rng.sample(range(bank.shape[0]), candidate_pool)
             bank = bank[idx]
-        self.memory_bank = bank
+
+        self.memory_bank = self._greedy_coreset(bank, coreset_size, seed)
+
+    @staticmethod
+    def _greedy_coreset(bank: torch.Tensor, m: int, seed: int = 0) -> torch.Tensor:
+        n = bank.shape[0]
+        if n <= m:
+            return bank
+        first = random.Random(seed).randrange(n)
+        selected = [first]
+        min_dists = torch.cdist(bank, bank[[first]]).squeeze(1)
+        for _ in range(m - 1):
+            next_idx = int(torch.argmax(min_dists))
+            selected.append(next_idx)
+            new_dists = torch.cdist(bank, bank[[next_idx]]).squeeze(1)
+            min_dists = torch.minimum(min_dists, new_dists)
+        return bank[selected]
 
     @torch.no_grad()
     def score(self, image: Image.Image) -> dict:
-        """Điểm bất thường = khoảng cách lớn nhất trong số các khoảng cách
-        nearest-neighbor của từng vùng ảnh tới ngân hàng đặc trưng."""
+        """Điểm bất thường = khoảng cách nearest-neighbor lớn nhất trong số
+        các vùng ảnh so với ngân hàng đặc trưng (đã được xây bằng greedy
+        coreset ở build_memory_bank, không phải lấy mẫu ngẫu nhiên)."""
         if self.memory_bank is None:
             raise RuntimeError("Chưa có ngân hàng đặc trưng — gọi build_memory_bank() hoặc load() trước.")
-        patches = self.extract_patch_embeddings(image)          # [P, C]
-        dists = torch.cdist(patches, self.memory_bank)           # [P, N]
-        nn_dist, _ = dists.min(dim=1)                             # [P]
+        patches = self.extract_patch_embeddings(image)            # [P, C]
+        dists = torch.cdist(patches, self.memory_bank)             # [P, N]
+        nn_dist, _ = dists.min(dim=1)                               # [P]
         side = int(round(nn_dist.shape[0] ** 0.5))
         heatmap = nn_dist.reshape(side, side).tolist() if side * side == nn_dist.shape[0] else None
         return {"score": float(nn_dist.max()), "heatmap": heatmap, "grid": side}
