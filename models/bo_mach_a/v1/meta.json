@@ -1,0 +1,11 @@
+{
+  "product_id": "bo_mach_a",
+  "version": 1,
+  "trained_at": "2026-09-25T10:33:53",
+  "num_train_images": 4,
+  "num_holdout_images": 1,
+  "threshold": 47.81165413720703,
+  "holdout_scores": [
+    47.81165313720703
+  ]
+}

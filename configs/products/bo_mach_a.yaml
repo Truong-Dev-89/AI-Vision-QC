@@ -1,0 +1,33 @@
+# Copy file này thành <product_id>.yaml khi thêm sản phẩm mới. Không sửa file _template.
+
+product_id: bo_mach_a          # chữ thường, gạch dưới, không dấu
+display_name: "Tên hiển thị cho người vận hành"
+
+camera:
+  device_id: 0                        # id camera hoặc URL RTSP
+  roi: [0, 0, 1920, 1080]             # vùng quan tâm x, y, width, height
+  trigger_mode: "external"            # external (theo tín hiệu băng chuyền) | manual
+
+model:
+  algorithm: "patchcore"              # patchcore | padim | yolo | ...
+  path: "models/bo_mach_a/v1/bank.pt"
+  backbone: "wide_resnet50_2"
+
+decision:
+  threshold: 47.8117                     # ngưỡng điểm bất thường
+  suspect_margin: 0.15                # trong khoảng [threshold, threshold+margin] -> nghi ngờ, đưa người kiểm tra
+  # dưới threshold: đạt | trong margin: nghi ngờ | trên threshold+margin: lỗi rõ
+
+data:
+  good_dir: "data/raw/bo_mach_a/good"
+  suspect_dir: "data/raw/bo_mach_a/suspect"
+  confirmed_ng_dir: "data/raw/bo_mach_a/confirmed_ng"
+
+integration:
+  plc_signal_pass: "DO_1"             # tín hiệu output khi đạt
+  plc_signal_reject: "DO_2"           # tín hiệu output khi loại bỏ
+  mes_product_code: "MA_SAN_PHAM_MES" # mã sản phẩm khớp với hệ thống MES
+
+retrain:
+  schedule: "weekly"                  # weekly | monthly | manual
+  min_new_samples: 50                 # đủ số ảnh mới thì mới trigger retrain
