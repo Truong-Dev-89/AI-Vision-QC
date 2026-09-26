@@ -1,39 +1,29 @@
-# Python
-__pycache__/
-*.py[cod]
-*.pyo
-
-# Virtual environment
-.venv/
+# Môi trường ảo Python — mỗi máy tự tạo lại bằng requirements.txt
 venv/
 env/
+__pycache__/
+*.pyc
 
-# Environment / secrets
-.env
-.env.*
-!.env.example
-
-# Logs
-*.log
-
-# Runtime data
+# Dữ liệu ảnh — thường rất nặng và có thể chứa thông tin nhạy cảm của công ty,
+# không nên đưa lên git. Chia sẻ qua Drive/S3 riêng như đã bàn trước đó.
+data/raw/*/good/*
+data/raw/*/suspect/*
+data/raw/*/confirmed_ng/*
 data/logs/
-data/raw/
-data/processed/
 
-# Model files
-*.pt
-*.pth
-*.onnx
+# Model đã train — file .pt có thể nặng vài trăm MB, git không hợp để lưu file lớn
+models/*/v*/
 
-# IDE
-.vscode/
-.idea/
+# Giữ lại cấu trúc thư mục (file .gitkeep) dù nội dung bị bỏ qua
+!**/.gitkeep
 
-# OS
+# Khóa xác thực API — tuyệt đối không đẩy lên git, mỗi máy chủ tự sinh 1 khóa riêng
+.api_key
+
 .DS_Store
 Thumbs.db
 
-# Python cache
-.pytest_cache/
-.mypy_cache/
+# File cấu hình cá nhân (nếu có thông tin nhạy cảm như IP nội bộ, mã PLC thật)
+# Bỏ comment dòng dưới nếu bạn KHÔNG muốn đẩy config sản phẩm thật lên git chung
+# configs/products/*.yaml
+# !configs/products/_template.yaml

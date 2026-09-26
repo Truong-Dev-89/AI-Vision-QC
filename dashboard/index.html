@@ -56,6 +56,14 @@ button:disabled{opacity:.4;cursor:default}
   <h1>Vision QC — Trạm giám sát camera</h1>
   <p class="sub">Kết nối trực tiếp với webcam/camera, gọi thẳng API đang chạy tại <span id="apiBase" style="font-family:var(--mono)"></span></p>
 
+  <div class="panel" id="authPanel">
+    <div class="row">
+      <input type="text" id="apiKeyInput" placeholder="API key của trạm (xem trong terminal chạy server)" style="flex:1">
+      <button class="ghost" onclick="saveApiKey()">Lưu khóa</button>
+    </div>
+    <p class="hint">Khóa này chỉ cần nhập 1 lần trên mỗi trình duyệt — được lưu lại cho lần sau.</p>
+  </div>
+
   <div class="tabs">
     <div class="tab active" id="tabInspect" onclick="switchTab('inspect')">Kiểm tra xuất hàng</div>
     <div class="tab" id="tabReturn" onclick="switchTab('return')">Quét hàng trả về</div>
@@ -65,6 +73,9 @@ button:disabled{opacity:.4;cursor:default}
     <div class="row">
       <select id="productSelect"></select>
       <input type="text" id="serialInput" placeholder="Mã SN (quét mã vạch/QR hoặc gõ tay)">
+    </div>
+    <div class="row">
+      <select id="cameraSelect" style="display:none"></select>
     </div>
 
     <div class="camwrap" id="camwrap">
@@ -99,6 +110,15 @@ button:disabled{opacity:.4;cursor:default}
 <script>
 const API_BASE = window.location.origin;
 document.getElementById('apiBase').textContent = API_BASE;
+document.getElementById('apiKeyInput').value = localStorage.getItem('vqc_api_key') || '';
+
+function saveApiKey(){
+  localStorage.setItem('vqc_api_key', document.getElementById('apiKeyInput').value.trim());
+  document.getElementById('statusLine').textContent = 'đã lưu khóa — thử chụp ảnh để kiểm tra';
+}
+function authHeaders(){
+  return {'X-API-Key': localStorage.getItem('vqc_api_key') || ''};
+}
 let mode = 'inspect';
 let stream = null;
 let lastImageId = null;
@@ -127,28 +147,63 @@ async function loadProducts(){
 }
 loadProducts();
 
-async function toggleCamera(){
+async function listCameras(){
+  try{
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const cams = devices.filter(d=>d.kind==='videoinput');
+    const sel = document.getElementById('cameraSelect');
+    sel.innerHTML = cams.map((c,i)=>`<option value="${c.deviceId}">${c.label || 'Camera '+(i+1)}</option>`).join('');
+    sel.style.display = cams.length > 1 ? 'inline-block' : 'none';
+    return cams;
+  }catch(e){ return []; }
+}
+
+async function startStream(deviceId){
   const video = document.getElementById('video');
+  const constraints = deviceId
+    ? {video:{deviceId:{exact:deviceId}}, audio:false}
+    : {video:true, audio:false};
+  stream = await navigator.mediaDevices.getUserMedia(constraints);
+  video.srcObject = stream;
+}
+
+async function toggleCamera(){
   const btn = document.getElementById('btnCam');
   if(stream){
     stream.getTracks().forEach(t=>t.stop());
     stream = null;
-    video.srcObject = null;
+    document.getElementById('video').srcObject = null;
     btn.textContent = 'Bật camera';
     document.getElementById('camoff').style.display='flex';
     document.getElementById('btnShot').disabled = true;
     return;
   }
   try{
-    stream = await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}, audio:false});
-    video.srcObject = stream;
+    // Xin quyền trước 1 lần để trình duyệt trả về đủ tên/label camera khi liệt kê,
+    // tránh trường hợp danh sách rỗng do chưa được cấp quyền.
+    await startStream(null);
+    const cams = await listCameras();
+    if(cams.length > 1){
+      // Nếu có nhiều camera (thường gặp trên laptop có cả camera IR cho Windows Hello),
+      // dừng stream tạm và mở lại đúng camera đầu tiên KHÔNG phải "infrared"/"ir".
+      const preferred = cams.find(c => !/infrared|ir camera/i.test(c.label)) || cams[0];
+      stream.getTracks().forEach(t=>t.stop());
+      await startStream(preferred.deviceId);
+      document.getElementById('cameraSelect').value = preferred.deviceId;
+    }
     btn.textContent = 'Tắt camera';
     document.getElementById('camoff').style.display='none';
     document.getElementById('btnShot').disabled = false;
   }catch(e){
-    alert('Không mở được camera. Kiểm tra quyền truy cập hoặc thử trình duyệt khác.');
+    alert('Không mở được camera. Kiểm tra: (1) đã cho phép quyền camera cho trình duyệt, (2) camera không đang bị app khác dùng, (3) truy cập đúng qua http://127.0.0.1:8000/ui/ chứ không phải địa chỉ IP khác.');
   }
 }
+
+document.getElementById('cameraSelect').addEventListener('change', async (e)=>{
+  if(!stream) return;
+  stream.getTracks().forEach(t=>t.stop());
+  await startStream(e.target.value);
+});
 
 function resetView(){
   document.getElementById('video').style.display = stream ? 'block' : 'block';
@@ -181,7 +236,7 @@ async function captureAndCheck(){
       ? `${API_BASE}/inspect/${product}`
       : `${API_BASE}/return-scan/${product}`;
     try{
-      const res = await fetch(endpoint, {method:'POST', body: form});
+      const res = await fetch(endpoint, {method:'POST', body: form, headers: authHeaders()});
       const data = await res.json();
       if(!res.ok){ throw new Error(data.detail || 'Lỗi không xác định'); }
       showResult(data);
@@ -227,7 +282,7 @@ function showResult(data){
 async function sendFeedback(isGood){
   if(!lastImageId || !lastProduct) return;
   try{
-    await fetch(`${API_BASE}/feedback/${lastProduct}/${lastImageId}?is_good=${isGood}`, {method:'POST'});
+    await fetch(`${API_BASE}/feedback/${lastProduct}/${lastImageId}?is_good=${isGood}`, {method:'POST', headers: authHeaders()});
     document.getElementById('feedbackRow').style.display='none';
     addHistory(`Phản hồi: ${isGood?'xác nhận Tốt':'xác nhận Lỗi'} cho ảnh vừa rồi`, '');
   }catch(e){ alert('Không gửi được phản hồi.'); }

@@ -27,6 +27,46 @@ Khách trả về: POST /return-scan/<product_id>  (kèm serial=<mã_SN>)  -> t�
   vì có thể là lỗi chức năng (camera không thấy) hoặc hư hỏng khi vận chuyển.
   Cần người xác nhận thủ công qua `POST /feedback` nếu muốn đưa vào dữ liệu train.
 
+## Triển khai nhiều trạm camera cùng gọi vào 1 máy chủ
+
+Khi 1 máy chạy API phục vụ nhiều trạm khác trong xưởng (không chỉ chạy 1 mình
+trên `127.0.0.1` nữa), có 2 việc BẮT BUỘC phải làm:
+
+### 1. Lấy API key
+
+Khi chạy `uvicorn`, terminal sẽ in ra dòng dạng:
+```
+API KEY của trạm này: xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+Mỗi trạm mở `/ui/`, dán đúng khóa này vào ô "API key" ở đầu trang, bấm "Lưu khóa" —
+chỉ cần làm 1 lần cho mỗi trình duyệt. Khóa được lưu trong file `.api_key` ở
+thư mục gốc dự án — **không đẩy file này lên git** (đã có sẵn trong `.gitignore`).
+
+### 2. Bật HTTPS (bắt buộc để camera hoạt động qua mạng)
+
+Trình duyệt CHỈ cho phép trang web dùng camera nếu truy cập qua `localhost`
+HOẶC qua HTTPS — không có ngoại lệ. Nếu các trạm khác truy cập bằng địa chỉ IP
+qua HTTP thường, camera sẽ **không bao giờ bật được**, dù mã nguồn đúng 100%.
+
+Tạo chứng chỉ tự ký (chạy 1 lần, cần có OpenSSL — có sẵn nếu bạn cài Git for
+Windows):
+```powershell
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=vision-qc-local"
+```
+
+Chạy server với HTTPS, cho phép máy khác trong mạng gọi vào (`--host 0.0.0.0`):
+```powershell
+uvicorn api.app:app --host 0.0.0.0 --port 8000 --ssl-keyfile key.pem --ssl-certfile cert.pem
+```
+
+Các trạm khác truy cập qua: `https://<địa-chỉ-IP-máy-chủ>:8000/ui/`
+(ví dụ `https://192.168.1.50:8000/ui/`). Trình duyệt sẽ cảnh báo "Not secure"
+vì chứng chỉ tự ký — đây là bình thường trong mạng nội bộ, bấm "Advanced" →
+"Proceed" để tiếp tục, chỉ cần làm 1 lần trên mỗi trạm.
+
+**Không mở port này ra internet** (không port-forward trên router) — hệ thống
+chỉ thiết kế cho mạng nội bộ nhà máy.
+
 ## Cách chạy thật (đã có code, không còn là khung rỗng)
 
 ```bash

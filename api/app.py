@@ -19,13 +19,15 @@ Khi kết quả là suspect/reject:
 """
 import base64
 import io
+import os
+import secrets
 import sys
 import uuid
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
@@ -38,6 +40,39 @@ from src.inference.visualize import draw_defect_box
 from src.utils.config import list_products, load_product_config, resolve_path
 
 app = FastAPI(title="Vision QC API")
+
+# --- Xác thực API key ---
+# Chỉ cần thiết khi máy chủ này được nhiều trạm khác trong mạng gọi vào.
+# Nếu chỉ chạy 1 mình trên máy của bạn (127.0.0.1), khóa này ít quan trọng
+# hơn, nhưng vẫn nên bật để tránh phần mềm khác vô tình gọi nhầm.
+_KEY_FILE = Path(__file__).resolve().parents[1] / ".api_key"
+
+
+def _get_or_create_api_key() -> str:
+    env_key = os.environ.get("VISION_QC_API_KEY")
+    if env_key:
+        return env_key
+    if _KEY_FILE.exists():
+        return _KEY_FILE.read_text().strip()
+    key = secrets.token_urlsafe(24)
+    _KEY_FILE.write_text(key)
+    return key
+
+
+API_KEY = _get_or_create_api_key()
+print("=" * 60)
+print(f"API KEY của trạm này: {API_KEY}")
+print("Mỗi trạm camera cần nhập đúng khóa này ở giao diện /ui/ để dùng được.")
+print("Không chia sẻ khóa này ra ngoài phạm vi nhà máy.")
+print("=" * 60)
+
+
+def verify_api_key(x_api_key: str | None = Header(None)) -> None:
+    if x_api_key != API_KEY:
+        raise HTTPException(401, "Sai hoặc thiếu API key (gửi kèm header X-API-Key).")
+
+
+_AUTH = [Depends(verify_api_key)]
 
 # Cho phép giao diện web (dashboard/) gọi API dù mở từ địa chỉ khác trên cùng
 # mạng nội bộ nhà máy. Nếu triển khai ra ngoài internet, nên giới hạn lại
@@ -64,7 +99,7 @@ def get_engine(product_id: str) -> tuple[PatchCoreEngine, dict]:
     return _engines[product_id], cfg
 
 
-@app.post("/inspect/{product_id}")
+@app.post("/inspect/{product_id}", dependencies=_AUTH)
 async def inspect(product_id: str, file: UploadFile = File(...),
                    serial: str | None = Form(None, description="Mã SN quét từ máy quét mã vạch/QR")):
     engine, cfg = get_engine(product_id)
@@ -104,7 +139,7 @@ async def inspect(product_id: str, file: UploadFile = File(...),
     return response
 
 
-@app.post("/feedback/{product_id}/{image_id}")
+@app.post("/feedback/{product_id}/{image_id}", dependencies=_AUTH)
 async def submit_feedback(product_id: str, image_id: str, is_good: bool):
     image_path = resolve_path(f"data/logs/images/{product_id}/{image_id}")
     if not image_path.exists():
@@ -113,7 +148,7 @@ async def submit_feedback(product_id: str, image_id: str, is_good: bool):
     return {"saved_to": str(dest), "retrain": fb.should_retrain(product_id)}
 
 
-@app.post("/return-scan/{product_id}")
+@app.post("/return-scan/{product_id}", dependencies=_AUTH)
 async def return_scan(product_id: str, file: UploadFile = File(...),
                        serial: str = Form(..., description="Mã SN của hàng bị khách trả về")):
     """
