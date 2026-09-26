@@ -8,22 +8,35 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
+  --bg:#f4f5fb; --panel:rgba(255,255,255,.72); --panel-solid:#ffffff; --border:rgba(15,23,42,.09);
+  --text:#181a24; --sub:#5c6270; --sub2:#9aa0ac;
+  --grad1:#7c6cf0; --grad2:#22b8cf;
+  --ok:#15a56b; --ok-bg:rgba(21,165,107,.10);
+  --warn:#c07d0a; --warn-bg:rgba(192,125,10,.10);
+  --danger:#dc3d3d; --danger-bg:rgba(220,61,61,.09);
+  --sans:'Inter',-apple-system,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+:root[data-theme="dark"]{
   --bg:#0b0d12; --panel:rgba(255,255,255,.045); --panel-solid:#161a22; --border:rgba(255,255,255,.09);
   --text:#eef0f4; --sub:#8b93a1; --sub2:#5c6472;
-  --grad1:#7c6cf0; --grad2:#33d0d8;
   --ok:#34d399; --ok-bg:rgba(52,211,153,.12);
   --warn:#fbbf24; --warn-bg:rgba(251,191,36,.12);
   --danger:#f87171; --danger-bg:rgba(248,113,113,.13);
-  --sans:'Inter',-apple-system,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace;
 }
 *{box-sizing:border-box}
 body{
   margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5;
   background-image:
-    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(124,108,240,.20), transparent 60%),
-    radial-gradient(ellipse 700px 500px at 100% 10%, rgba(51,208,216,.13), transparent 55%);
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(124,108,240,.16), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 10%, rgba(34,184,207,.13), transparent 55%);
   background-attachment:fixed;
   min-height:100vh;
+  transition:background-color .2s;
+}
+:root[data-theme="dark"] body{
+  background-image:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(124,108,240,.20), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 10%, rgba(51,208,216,.13), transparent 55%);
 }
 .shell{max-width:980px;margin:0 auto;padding:28px 20px 80px}
 
@@ -114,6 +127,7 @@ button:disabled{opacity:.35;cursor:default;transform:none}
       <div class="langsw" id="langsw">
         <button data-lang="vi">VI</button><button data-lang="zh">中文</button><button data-lang="en">EN</button>
       </div>
+      <div class="iconbtn" onclick="toggleTheme()" id="themeBtn" title="Theme">☀</div>
       <div class="livepill"><span class="livedot" id="liveDot"></span><span id="liveText">–</span></div>
       <div class="iconbtn" onclick="openSettings()" title="Settings">⚙</div>
     </div>
@@ -188,6 +202,19 @@ button:disabled{opacity:.35;cursor:default;transform:none}
 <div class="toasts" id="toasts"></div>
 
 <script>
+/* ---------- theme ---------- */
+function applyTheme(){
+  const theme = localStorage.getItem('vqc_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', theme);
+  document.getElementById('themeBtn').textContent = theme === 'dark' ? '☾' : '☀';
+}
+function toggleTheme(){
+  const current = localStorage.getItem('vqc_theme') || 'light';
+  localStorage.setItem('vqc_theme', current === 'dark' ? 'light' : 'dark');
+  applyTheme();
+}
+applyTheme();
+
 /* ---------- i18n ---------- */
 const STR = {
   vi:{ connecting:'đang kết nối', connected:'{0} sản phẩm sẵn sàng', noConn:'Không kết nối được API',
