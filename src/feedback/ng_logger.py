@@ -1,13 +1,13 @@
 """
-Lưu ảnh NG đã khoanh vùng lỗi + ghi log tra cứu theo ngày.
+Save an annotated NG (defect) image and write a lookup log per day.
 
-Cấu trúc lưu:
-  data/logs/ng_images/<product_id>/<YYYY-MM-DD>/<SN>.jpg   — ảnh đã khoanh đỏ
-  data/logs/ng_log/<product_id>/<YYYY-MM-DD>.csv           — log tra cứu trong ngày
+Storage layout:
+  data/logs/ng_images/<product_id>/<YYYY-MM-DD>/<SN>.jpg   — annotated image
+  data/logs/ng_log/<product_id>/<YYYY-MM-DD>.csv           — lookup log for that day
 
-Vì sao tách riêng theo ngày và đặt tên theo SN: khi có hàng bị khách trả lại,
-chỉ cần biết mã SN + ngày xuất xưởng là tra ra ngay ảnh lúc kiểm tra, không
-phải lục qua hàng nghìn ảnh.
+Why split by day and name files by serial number: when a customer returns a
+unit, knowing just the serial number + shipping date is enough to instantly
+find the inspection image, instead of searching through thousands of files.
 """
 from __future__ import annotations
 import csv
@@ -40,7 +40,7 @@ def save_ng(product_id: str, annotated_image: Image.Image, serial: str | None,
     dest_dir = _ng_image_dir(product_id, date_str)
     dest = dest_dir / f"{safe_serial}.jpg"
     counter = 1
-    while dest.exists():  # tránh ghi đè nếu 1 mã SN bị quét/kiểm tra nhiều lần trong ngày
+    while dest.exists():  # avoid overwriting if the same SN is scanned/inspected more than once in a day
         dest = dest_dir / f"{safe_serial}_{counter}.jpg"
         counter += 1
     annotated_image.convert("RGB").save(dest, quality=92)

@@ -1,155 +1,163 @@
-# AI Vision QC — Khung dự án đa sản phẩm
+# AI Vision QC — Multi-Product Project Scaffold
 
-## Giao diện web có camera trực tiếp
+## Web UI with live camera
 
 ```bash
 uvicorn api.app:app --reload --port 8000
 ```
 
-Mở trình duyệt vào **http://127.0.0.1:8000/ui/** — giao diện cho phép:
-- Bật webcam/camera, xem hình trực tiếp
-- Chọn sản phẩm, nhập/quét mã SN, bấm "Chụp & Kiểm tra"
-- Thấy ngay ảnh đã khoanh đỏ vùng lỗi (nếu có) và kết quả đạt/nghi ngờ/lỗi
-- Chuyển sang tab "Quét hàng trả về" để đối chiếu theo mã SN (xem mục bên dưới)
-- Xác nhận Tốt/Lỗi ngay trên giao diện để AI học tiếp
+Open your browser at **http://127.0.0.1:8000/ui/** — the UI lets you:
+- Turn on the webcam/camera and see a live feed (language switcher: VI / 中文 / EN)
+- Pick a product, enter/scan a serial number, click "Capture & Inspect"
+- Immediately see the annotated image (red-boxed defect region, if any) and the pass/suspect/reject result
+- Switch to the "Return scan" tab to cross-check by serial number (see below)
+- Confirm Good/Defect right in the UI to keep the AI learning
 
-## Đối chiếu 2 lần quét: xuất hàng vs khách trả về (vòng lặp tự học chính)
+## Cross-checking two scans: outbound shipment vs. customer return (the main self-learning loop)
 
 ```
-Xuất hàng: POST /inspect/<product_id>  (kèm serial=<mã_SN>)  -> log lại kết quả theo SN
-Khách trả về: POST /return-scan/<product_id>  (kèm serial=<mã_SN>)  -> tự tìm lại log cũ
+Outbound: POST /inspect/<product_id>  (with serial=<SN>)  -> logs the result under that SN
+Return:   POST /return-scan/<product_id>  (with serial=<SN>)  -> automatically looks up the old log
 ```
 
-- Nếu **lúc xuất: đạt** nhưng **lúc trả về: AI phát hiện lỗi** → bằng chứng rõ ràng
-  là lỗi bị bỏ sót thật. Hệ thống **tự động** thêm vào `confirmed_ng/`, không cần
-  người xác nhận lại — đây là dữ liệu quý nhất để giảm hàng NG lọt ra ngoài.
-- Nếu **lúc trả về AI vẫn thấy bình thường** → hệ thống **không tự** gán nhãn,
-  vì có thể là lỗi chức năng (camera không thấy) hoặc hư hỏng khi vận chuyển.
-  Cần người xác nhận thủ công qua `POST /feedback` nếu muốn đưa vào dữ liệu train.
+- If **outbound: pass** but **return: the AI detects a defect** → clear evidence
+  of a real missed defect. The system **automatically** adds it to `confirmed_ng/`,
+  no human confirmation needed — this is the most valuable data for reducing
+  defective units reaching customers.
+- If **the return scan still looks normal** → the system does **not** auto-label,
+  since it could be a functional defect (invisible to the camera) or shipping
+  damage. A human needs to confirm manually via `POST /feedback` before it's
+  added to the training data.
 
-## Triển khai nhiều trạm camera cùng gọi vào 1 máy chủ
+## Deploying multiple camera stations against one server
 
-Khi 1 máy chạy API phục vụ nhiều trạm khác trong xưởng (không chỉ chạy 1 mình
-trên `127.0.0.1` nữa), có 2 việc BẮT BUỘC phải làm:
+When one machine runs the API for multiple other stations on the factory
+floor (not just running alone on `127.0.0.1` anymore), there are 2 MANDATORY steps:
 
-### 1. Lấy API key
+### 1. Get the API key
 
-Khi chạy `uvicorn`, terminal sẽ in ra dòng dạng:
+When you run `uvicorn`, the terminal prints a line like:
 ```
-API KEY của trạm này: xxxxxxxxxxxxxxxxxxxxxxxxxxxx
+API KEY for this station: xxxxxxxxxxxxxxxxxxxxxxxxxxxx
 ```
-Mỗi trạm mở `/ui/`, dán đúng khóa này vào ô "API key" ở đầu trang, bấm "Lưu khóa" —
-chỉ cần làm 1 lần cho mỗi trình duyệt. Khóa được lưu trong file `.api_key` ở
-thư mục gốc dự án — **không đẩy file này lên git** (đã có sẵn trong `.gitignore`).
+Each station opens `/ui/`, pastes this exact key into the "API key" field,
+clicks "Save" — only needs to be done once per browser. The key is stored in
+the `.api_key` file at the project root — **never push this file to git**
+(already excluded via `.gitignore`).
 
-### 2. Bật HTTPS (bắt buộc để camera hoạt động qua mạng)
+### 2. Enable HTTPS (required for the camera to work over the network)
 
-Trình duyệt CHỈ cho phép trang web dùng camera nếu truy cập qua `localhost`
-HOẶC qua HTTPS — không có ngoại lệ. Nếu các trạm khác truy cập bằng địa chỉ IP
-qua HTTP thường, camera sẽ **không bao giờ bật được**, dù mã nguồn đúng 100%.
+Browsers ONLY allow a web page to use the camera when accessed via
+`localhost` OR over HTTPS — no exceptions. If other stations access it by IP
+address over plain HTTP, the camera will **never turn on**, no matter how
+correct the code is.
 
-Tạo chứng chỉ tự ký (chạy 1 lần, cần có OpenSSL — có sẵn nếu bạn cài Git for
-Windows):
+Generate a self-signed certificate (one-time, requires OpenSSL — bundled
+with Git for Windows):
 ```powershell
 openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes -subj "/CN=vision-qc-local"
 ```
 
-Chạy server với HTTPS, cho phép máy khác trong mạng gọi vào (`--host 0.0.0.0`):
+Run the server with HTTPS, allowing other machines on the network to connect (`--host 0.0.0.0`):
 ```powershell
 uvicorn api.app:app --host 0.0.0.0 --port 8000 --ssl-keyfile key.pem --ssl-certfile cert.pem
 ```
 
-Các trạm khác truy cập qua: `https://<địa-chỉ-IP-máy-chủ>:8000/ui/`
-(ví dụ `https://192.168.1.50:8000/ui/`). Trình duyệt sẽ cảnh báo "Not secure"
-vì chứng chỉ tự ký — đây là bình thường trong mạng nội bộ, bấm "Advanced" →
-"Proceed" để tiếp tục, chỉ cần làm 1 lần trên mỗi trạm.
+Other stations access it via: `https://<server-ip-address>:8000/ui/`
+(e.g. `https://192.168.1.50:8000/ui/`). The browser will warn "Not secure"
+because of the self-signed certificate — this is expected on an internal
+network; click "Advanced" → "Proceed" to continue, only needed once per station.
 
-**Không mở port này ra internet** (không port-forward trên router) — hệ thống
-chỉ thiết kế cho mạng nội bộ nhà máy.
+**Do not expose this port to the internet** (no port-forwarding on the
+router) — the system is designed for an internal factory network only.
 
-## Cách chạy thật (đã có code, không còn là khung rỗng)
+## How to actually run it (real code, not just an empty scaffold)
 
 ```bash
-# 1. Cài thư viện (máy cần có kết nối mạng để tải PyTorch + pretrained weights)
+# 1. Install dependencies (needs internet to download PyTorch + pretrained weights)
 pip install -r requirements.txt
 
-# 2. Bỏ ảnh "tốt" vào đúng thư mục (tối thiểu 20-30 ảnh)
-#    data/raw/<product_id>/good/anh1.jpg, anh2.jpg, ...
+# 2. Put "good" images in the right folder (minimum 20-30 images)
+#    data/raw/<product_id>/good/image1.jpg, image2.jpg, ...
 
-# 3. Train — thực chất là xây "ngân hàng đặc trưng" từ ảnh tốt
+# 3. Train — really means building a "memory bank" from the good images
 python training/train.py --product <product_id>
-#    -> in ra đường dẫn model + ngưỡng đề xuất
+#    -> prints the model path + a suggested threshold
 
 # 4. Copy configs/products/_template.yaml -> configs/products/<product_id>.yaml
-#    điền model.path và decision.threshold theo kết quả bước 3
+#    fill in model.path and decision.threshold from step 3's output
 
-# 5. Chạy API để kiểm tra ảnh qua HTTP
+# 5. Run the API to inspect images over HTTP
 uvicorn api.app:app --reload --port 8000
-#    POST /inspect/<product_id>            (kèm file ảnh) -> kết quả pass/suspect/reject
-#    POST /feedback/<product_id>/<image_id>?is_good=true|false  -> AI ghi nhận, chuẩn bị tự học
+#    POST /inspect/<product_id>            (with an image file) -> pass/suspect/reject result
+#    POST /feedback/{product_id}/{image_id}?is_good=true|false  -> records feedback for self-learning
 ```
 
-## Vòng lặp "tự học" hoạt động thế nào
-Mỗi ảnh bị đánh dấu `suspect`/`reject` được tự động lưu vào `data/raw/<product_id>/suspect/`.
-Khi bạn gọi `/feedback` xác nhận đúng/sai, ảnh được chuyển vào `good/` (nếu AI báo nhầm)
-hoặc `confirmed_ng/` (nếu đúng là lỗi). Khi đủ số ảnh mới (`min_new_samples` trong config),
-chạy lại `training/train.py` — model sẽ học thêm từ chính những ảnh đó, theo đúng quy trình
-kiểm soát version an toàn ở `docs/retrain_policy.md`.
+## How the "self-learning" loop works
+Every image flagged `suspect`/`reject` is automatically saved to
+`data/raw/<product_id>/suspect/`. When you call `/feedback` to confirm
+right/wrong, the image is moved into `good/` (if the AI was wrong) or
+`confirmed_ng/` (if it really was a defect). Once enough new images
+accumulate (`min_new_samples` in the config), re-run `training/train.py` —
+the model learns from those exact images, following the safe version-control
+procedure in `docs/retrain_policy.md`.
 
 ---
 
-## Nguyên tắc cốt lõi (thiết kế thư mục)
-Hệ thống được thiết kế theo 2 lớp tách biệt, để thêm sản phẩm mới KHÔNG cần sửa mã nguồn lõi:
+## Core principle (folder design)
+The system is designed in 2 separate layers, so adding a new product does
+NOT require touching the core source code:
 
-1. **Lớp nền tảng (`src/`)**: xử lý ảnh, chạy model, ra quyết định, tích hợp PLC/MES.
-   Dùng chung cho mọi sản phẩm, hiếm khi thay đổi.
-2. **Lớp cấu hình (`configs/products/`)**: mỗi sản phẩm là 1 file YAML riêng,
-   trỏ đến model, dữ liệu, ngưỡng của chính nó.
+1. **Platform layer (`src/`)**: image processing, running the model, making
+   decisions, PLC/MES integration. Shared by every product, rarely changes.
+2. **Config layer (`configs/products/`)**: each product is its own YAML file
+   pointing to its own model, data, and threshold.
 
-Khi có sản phẩm mới: thêm 1 thư mục trong `data/raw/`, train model, thêm 1 file
-YAML trong `configs/products/` — không đụng vào `src/`.
+Adding a new product: add a folder under `data/raw/`, train a model, add a
+YAML file under `configs/products/` — don't touch `src/`.
 
-## Cấu trúc thư mục
+## Folder structure
 
 ```
 ai_vision_qc/
-├── configs/products/     # 1 file YAML = 1 loại sản phẩm
+├── configs/products/     # 1 YAML file = 1 product type
 ├── data/
 │   ├── raw/<product_id>/{good,suspect,confirmed_ng}/
-│   ├── processed/        # ảnh đã tiền xử lý, sẵn sàng train
+│   ├── processed/        # preprocessed images, ready for training
 │   └── logs/             # shipment_log.csv, returns_log.csv
-├── models/<product_id>/  # trọng số đã train, có version
+├── models/<product_id>/  # trained weights, versioned
 ├── src/
-│   ├── capture/          # giao tiếp camera, trigger chụp
-│   ├── preprocessing/    # crop theo ROI, căn chỉnh, chuẩn hóa
-│   ├── inference/        # load model, tính điểm bất thường
-│   ├── decision/         # logic đạt/lỗi/nghi ngờ theo ngưỡng
-│   ├── feedback/         # vòng lặp tự học: gán nhãn, trigger retrain
-│   ├── integration/      # kết nối PLC/MES
-│   └── utils/            # hàm dùng chung
-├── training/             # script train, đánh giá model
-├── api/                  # REST API phục vụ inference real-time
-├── dashboard/            # giao diện giám sát tỷ lệ lỗi
-├── tests/                # kiểm thử tự động
+│   ├── capture/          # camera interface, capture trigger
+│   ├── preprocessing/    # ROI cropping, alignment, normalization
+│   ├── inference/        # load model, compute anomaly score
+│   ├── decision/         # pass/suspect/reject logic based on threshold
+│   ├── feedback/         # self-learning loop: labeling, retrain triggers
+│   ├── integration/      # PLC/MES connections
+│   └── utils/            # shared helper functions
+├── training/             # training script, model evaluation
+├── api/                  # REST API for real-time inference
+├── dashboard/            # defect-rate monitoring UI
+├── tests/                # automated tests
 ├── deployment/
-│   ├── docker/           # đóng gói triển khai server
-│   └── edge/             # cấu hình cho Jetson/thiết bị biên
-└── docs/                 # tài liệu vận hành, runbook
+│   ├── docker/           # server deployment packaging
+│   └── edge/             # config for Jetson/edge devices
+└── docs/                 # operating docs, runbooks
 ```
 
-## Quy tắc đặt tên (giữ nguyên xuyên suốt dự án)
-- `product_id`: chữ thường, không dấu, gạch dưới. Ví dụ: `bo_mach_a`, `bao_bi_nhua_b`
-- Ảnh: `<ma_lo>_<serial>.jpg`, ví dụ `LO20260924_SP00015.jpg`
-- Model: `models/<product_id>/v<số phiên bản>/model.pt`, ví dụ `models/bo_mach_a/v3/model.pt`
+## Naming conventions (keep consistent across the whole project)
+- `product_id`: lowercase, no accents, underscores. Example: `board_a`, `plastic_wrap_b`
+- Images: `<batch_code>_<serial>.jpg`, e.g. `LO20260924_SP00015.jpg`
+- Models: `models/<product_id>/v<version>/model.pt`, e.g. `models/board_a/v3/model.pt`
 
-## Luồng thêm 1 sản phẩm mới
-1. Tạo `data/raw/<product_id>/good/` và bỏ ảnh tốt vào
-2. Chạy `training/train.py --product <product_id>` để train
-3. Copy `configs/products/_template.yaml` → `configs/products/<product_id>.yaml`, điền thông số
-4. Hệ thống lõi tự nhận diện sản phẩm mới qua file cấu hình, không cần deploy lại `src/`
+## Workflow for adding a new product
+1. Create `data/raw/<product_id>/good/` and drop good images into it
+2. Run `training/train.py --product <product_id>` to train
+3. Copy `configs/products/_template.yaml` → `configs/products/<product_id>.yaml`, fill in the values
+4. The core system automatically recognizes the new product from its config file — no need to redeploy `src/`
 
-## Vòng lặp tự học (feedback loop)
-`src/feedback/` chịu trách nhiệm: mọi ảnh bị gắn cờ "nghi ngờ" hoặc bị công nhân
-sửa lại kết quả sẽ tự động được lưu vào `data/raw/<product_id>/suspect/`.
-Định kỳ (tuần/tháng), chạy lại `training/train.py` để cập nhật model — xem
-`docs/retrain_policy.md` để biết quy trình kiểm soát version an toàn.
+## Self-learning feedback loop
+`src/feedback/` is responsible for: any image flagged "suspect" or whose
+result was corrected by an operator is automatically saved into
+`data/raw/<product_id>/suspect/`. Periodically (weekly/monthly), re-run
+`training/train.py` to update the model — see `docs/retrain_policy.md` for
+the safe version-control procedure.

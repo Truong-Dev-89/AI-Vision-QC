@@ -1,33 +1,33 @@
-# Copy file này thành <product_id>.yaml khi thêm sản phẩm mới. Không sửa file _template.
+# Copy this file to <product_id>.yaml when adding a new product. Don't edit _template directly.
 
-product_id: ten_san_pham_moi          # chữ thường, gạch dưới, không dấu
-display_name: "Tên hiển thị cho người vận hành"
+product_id: new_product_name          # lowercase, underscores, no accents
+display_name: "Name shown to the operator"
 
 camera:
-  device_id: 0                        # id camera hoặc URL RTSP
-  roi: [0, 0, 1920, 1080]             # vùng quan tâm x, y, width, height
-  trigger_mode: "external"            # external (theo tín hiệu băng chuyền) | manual
+  device_id: 0                        # camera id or RTSP URL
+  roi: [0, 0, 1920, 1080]             # region of interest x, y, width, height
+  trigger_mode: "external"            # external (triggered by the conveyor) | manual
 
 model:
   algorithm: "patchcore"              # patchcore | padim | yolo | ...
-  path: "models/ten_san_pham_moi/v1/model.pt"
+  path: "models/new_product_name/v1/bank.pt"
   backbone: "wide_resnet50_2"
 
 decision:
-  threshold: 0.85                     # ngưỡng điểm bất thường
-  suspect_margin: 0.15                # trong khoảng [threshold, threshold+margin] -> nghi ngờ, đưa người kiểm tra
-  # dưới threshold: đạt | trong margin: nghi ngờ | trên threshold+margin: lỗi rõ
+  threshold: 0.85                     # anomaly score threshold
+  suspect_margin: 0.15                # within [threshold, threshold+margin] -> suspect, route to a human
+  # below threshold: pass | within margin: suspect | above threshold+margin: clear defect
 
 data:
-  good_dir: "data/raw/ten_san_pham_moi/good"
-  suspect_dir: "data/raw/ten_san_pham_moi/suspect"
-  confirmed_ng_dir: "data/raw/ten_san_pham_moi/confirmed_ng"
+  good_dir: "data/raw/new_product_name/good"
+  suspect_dir: "data/raw/new_product_name/suspect"
+  confirmed_ng_dir: "data/raw/new_product_name/confirmed_ng"
 
 integration:
-  plc_signal_pass: "DO_1"             # tín hiệu output khi đạt
-  plc_signal_reject: "DO_2"           # tín hiệu output khi loại bỏ
-  mes_product_code: "MA_SAN_PHAM_MES" # mã sản phẩm khớp với hệ thống MES
+  plc_signal_pass: "DO_1"             # output signal on pass
+  plc_signal_reject: "DO_2"           # output signal on reject
+  mes_product_code: "MES_PRODUCT_CODE" # product code matching the MES system
 
 retrain:
   schedule: "weekly"                  # weekly | monthly | manual
-  min_new_samples: 50                 # đủ số ảnh mới thì mới trigger retrain
+  min_new_samples: 50                 # only trigger retraining once this many new images accumulate

@@ -1,4 +1,4 @@
 # integration/
-
-Kết nối với PLC (Modbus/OPC-UA) để điều khiển cơ cấu loại bỏ sản phẩm lỗi,
-và với MES để log kết quả kiểm tra theo mã lô/sản phẩm phục vụ truy vết.
+Connects to the PLC (Modbus/OPC-UA) to control the reject mechanism for
+defective units, and to the MES to log inspection results by
+batch/product code for traceability.

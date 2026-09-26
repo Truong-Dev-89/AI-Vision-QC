@@ -1,4 +1,3 @@
 # edge/
-
-Cấu hình triển khai lên thiết bị biên (Jetson Orin, mini-PC tại xưởng) khi
-cần inference tại chỗ, không phụ thuộc đường truyền mạng lên cloud.
+Deployment configuration for edge devices (Jetson Orin, an on-site mini-PC)
+when inference needs to run locally without depending on a network link to the cloud.

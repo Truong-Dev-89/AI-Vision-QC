@@ -1,11 +1,11 @@
 """
-Vòng lặp tự học. Đây là phần biến hệ thống từ "kiểm tra cố định" thành
-"càng dùng càng chính xác":
+The self-learning feedback loop. This is what turns the system from "fixed
+inspection" into "gets more accurate the more it's used":
 
-  ảnh nghi ngờ / bị công nhân sửa kết quả
-        -> lưu vào đúng thư mục data/raw/<product_id>/
-        -> đủ số lượng mới (min_new_samples trong config)
-        -> nhắc/trigger chạy lại training/train.py
+  a suspect image / an image whose verdict a worker corrects
+        -> saved into the right data/raw/<product_id>/ subfolder
+        -> enough new samples accumulate (min_new_samples in the config)
+        -> prompts/triggers re-running training/train.py
 """
 from __future__ import annotations
 import json
@@ -24,9 +24,10 @@ def _log_path(product_id: str) -> Path:
 
 def record_result(product_id: str, image_path: Path, score: float, decision: str,
                    serial: str | None = None) -> None:
-    """Ghi lại MỌI kết quả kiểm tra, kể cả 'pass'.
-    Lý do: khi có hàng bị khách trả lại, cần tra lại đúng ảnh + điểm số lúc
-    xuất xưởng để biết model đã bỏ sót lỗi này hay chưa (false negative thật)."""
+    """Log EVERY inspection result, including 'pass' ones.
+    Why: when a customer returns a unit, we need to look up the exact image +
+    score from shipping time to tell whether the model truly missed a real
+    defect (a genuine false negative)."""
     entry = {
         "time": datetime.now().isoformat(timespec="seconds"),
         "product_id": product_id,
@@ -48,10 +49,10 @@ def save_suspect(product_id: str, image_path: Path) -> Path:
 
 
 def confirm_feedback(product_id: str, image_path: Path, is_good: bool) -> Path:
-    """Người vận hành xác nhận đúng/sai cho 1 ảnh.
-    Tốt -> thêm vào good/ (ngân hàng đặc trưng phong phú hơn ở lần train sau).
-    Lỗi -> confirmed_ng/ (ưu tiên dùng khi đánh giá model mới trước khi thay
-    thế model đang chạy — xem docs/retrain_policy.md)."""
+    """A human confirms whether an image was correctly judged.
+    Good -> add to good/ (enriches the memory bank on the next training run).
+    Defect -> confirmed_ng/ (used first when evaluating a new model before it
+    replaces the one in production — see docs/retrain_policy.md)."""
     target = "good" if is_good else "confirmed_ng"
     dest_dir = resolve_path(f"data/raw/{product_id}/{target}")
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -61,8 +62,9 @@ def confirm_feedback(product_id: str, image_path: Path, is_good: bool) -> Path:
 
 
 def find_shipment_record(product_id: str, serial: str) -> dict | None:
-    """Tìm lần quét gần nhất của đúng mã SN trong log — dùng để đối chiếu khi
-    hàng bị khách trả về, xem lúc xuất hàng AI đã kết luận thế nào."""
+    """Look up the most recent scan for a given serial number — used to
+    cross-check against a returned unit and see what the AI concluded at
+    shipping time."""
     log_file = _log_path(product_id)
     if not serial or not log_file.exists():
         return None
@@ -76,8 +78,9 @@ def find_shipment_record(product_id: str, serial: str) -> dict | None:
 
 
 def should_retrain(product_id: str) -> dict:
-    """So số ảnh mới (suspect + confirmed_ng) với ngưỡng min_new_samples
-    trong config sản phẩm để quyết định có nên chạy lại train.py hay chưa."""
+    """Compare the number of new images (suspect + confirmed_ng) against the
+    min_new_samples threshold in the product's config to decide whether it's
+    time to re-run train.py."""
     cfg = load_product_config(product_id)
     min_new = cfg.get("retrain", {}).get("min_new_samples", 50)
     suspect_dir = resolve_path(f"data/raw/{product_id}/suspect")

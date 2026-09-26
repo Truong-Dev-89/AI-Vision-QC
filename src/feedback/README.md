@@ -1,6 +1,5 @@
 # feedback/
-
-Vòng lặp tự học. Lưu ảnh suspect và ảnh bị công nhân sửa kết quả vào đúng
-thư mục data/raw/<product_id>/. Theo dõi khi nào đủ dữ liệu mới
-(min_new_samples trong config) để trigger retrain tự động hoặc nhắc người
-vận hành retrain thủ công.
+The self-learning loop. Saves "suspect" images and images whose verdict was
+corrected by an operator into the right data/raw/<product_id>/ subfolder.
+Tracks when enough new data (min_new_samples in the config) has accumulated
+to trigger an automatic retrain or prompt the operator to retrain manually.

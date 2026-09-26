@@ -1,15 +1,17 @@
 """
-PatchCoreEngine — bản triển khai rút gọn của thuật toán PatchCore
+PatchCoreEngine — a simplified implementation of the PatchCore algorithm
 (Roth et al., "Towards Total Recall in Industrial Anomaly Detection", 2022).
 
-Ý tưởng cốt lõi:
-1. Dùng backbone CNN đã pretrain trên ImageNet để trích đặc trưng TRUNG GIAN
-   (không phải lớp cuối) — giữ được thông tin vị trí không gian của từng vùng ảnh.
-2. Lưu toàn bộ đặc trưng từ ảnh "tốt" vào 1 ngân hàng (memory bank).
-3. Với ảnh mới: so từng vùng nhỏ với ngân hàng bằng nearest-neighbor,
-   lấy vùng lệch nhiều nhất làm điểm bất thường của cả ảnh.
+Core idea:
+1. Use an ImageNet-pretrained CNN backbone to extract INTERMEDIATE features
+   (not the final layer) — this keeps the spatial position information for
+   each region of the image.
+2. Store the features from every "good" image in a memory bank.
+3. For a new image: compare each small region against the memory bank via
+   nearest-neighbor, and take the worst-matching region as the image's
+   anomaly score.
 
-Cần cài: torch, torchvision (xem requirements.txt ở thư mục gốc).
+Requires: torch, torchvision (see requirements.txt at the project root).
 """
 from __future__ import annotations
 import random
@@ -35,8 +37,9 @@ class PatchCoreEngine:
             p.requires_grad_(False)
         self.net = net
 
-        # layer2 + layer3 là lựa chọn chuẩn trong PatchCore gốc: đủ sâu để
-        # có ngữ nghĩa, đủ nông để còn giữ chi tiết không gian cho việc khoanh vùng lỗi.
+        # layer2 + layer3 is the standard choice in the original PatchCore
+        # paper: deep enough to carry semantic meaning, shallow enough to
+        # still preserve spatial detail for localizing defects.
         self._features: dict[str, torch.Tensor] = {}
         net.layer2.register_forward_hook(self._hook("layer2"))
         net.layer3.register_forward_hook(self._hook("layer3"))
@@ -56,7 +59,8 @@ class PatchCoreEngine:
 
     @torch.no_grad()
     def extract_patch_embeddings(self, image: Image.Image) -> torch.Tensor:
-        """Trả về [num_patches, C]: mỗi hàng là đặc trưng của 1 vùng nhỏ trên ảnh."""
+        """Returns [num_patches, C]: each row is the feature vector of one
+        small region of the image."""
         x = self.preprocess(image.convert("RGB")).unsqueeze(0).to(self.device)
         self._features.clear()
         self.net(x)
@@ -68,16 +72,19 @@ class PatchCoreEngine:
 
     def build_memory_bank(self, image_paths: list[Path], coreset_size: int = 2000,
                            candidate_pool: int = 8000, seed: int = 0) -> None:
-        """Xây ngân hàng đặc trưng bằng GREEDY CORESET SUBSAMPLING — đúng kỹ
-        thuật trong bài báo gốc PatchCore, thay vì lấy mẫu ngẫu nhiên đơn giản.
+        """Build the memory bank using GREEDY CORESET SUBSAMPLING — the same
+        technique used in the original PatchCore paper, instead of plain
+        random sampling.
 
-        Greedy coreset chọn lần lượt điểm CÀNG XA các điểm đã chọn càng tốt
-        (farthest-point sampling), nhờ vậy ngân hàng nhỏ vẫn phủ đều toàn bộ
-        không gian đặc trưng, không bị lệch về vùng có nhiều ảnh giống nhau.
+        Greedy coreset repeatedly picks the point that is FARTHEST from the
+        points already chosen (farthest-point sampling), so a small memory
+        bank still covers the whole feature space evenly instead of being
+        biased toward regions with many similar-looking images.
 
-        Vì so khoảng cách với toàn bộ hàng chục nghìn patch rất chậm, bước đầu
-        lấy mẫu ngẫu nhiên xuống `candidate_pool` ứng viên, rồi mới chạy
-        greedy coreset trên tập ứng viên đó xuống `coreset_size` cuối cùng.
+        Because comparing distances across tens of thousands of patches is
+        slow, we first randomly subsample down to `candidate_pool`
+        candidates, then run greedy coreset on that pool down to the final
+        `coreset_size`.
         """
         chunks = [self.extract_patch_embeddings(Image.open(p)) for p in image_paths]
         bank = torch.cat(chunks, dim=0)
@@ -106,11 +113,11 @@ class PatchCoreEngine:
 
     @torch.no_grad()
     def score(self, image: Image.Image) -> dict:
-        """Điểm bất thường = khoảng cách nearest-neighbor lớn nhất trong số
-        các vùng ảnh so với ngân hàng đặc trưng (đã được xây bằng greedy
-        coreset ở build_memory_bank, không phải lấy mẫu ngẫu nhiên)."""
+        """Anomaly score = the largest nearest-neighbor distance among all
+        regions of the image against the memory bank (built with greedy
+        coreset in build_memory_bank, not random sampling)."""
         if self.memory_bank is None:
-            raise RuntimeError("Chưa có ngân hàng đặc trưng — gọi build_memory_bank() hoặc load() trước.")
+            raise RuntimeError("No memory bank yet — call build_memory_bank() or load() first.")
         patches = self.extract_patch_embeddings(image)            # [P, C]
         dists = torch.cdist(patches, self.memory_bank)             # [P, N]
         nn_dist, _ = dists.min(dim=1)                               # [P]
@@ -129,8 +136,8 @@ class PatchCoreEngine:
     @classmethod
     def load(cls, path: Path, device: str | None = None) -> "PatchCoreEngine":
         ckpt = torch.load(path, map_location="cpu")
-        # Backbone phải dùng pretrained weights chuẩn (giống lúc train) để
-        # đặc trưng trích ra khớp với ngân hàng đã lưu.
+        # The backbone must use the same standard pretrained weights as during
+        # training so extracted features match the saved memory bank.
         eng = cls(backbone=ckpt["backbone"], device=device, pretrained=True,
                    image_size=ckpt["image_size"])
         eng.memory_bank = ckpt["memory_bank"]

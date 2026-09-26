@@ -1,15 +1,16 @@
 """
-Huấn luyện — thực chất là XÂY NGÂN HÀNG ĐẶC TRƯNG từ ảnh "tốt" (không cần ảnh lỗi).
+Training — really means BUILDING THE MEMORY BANK from "good" images (no
+defect images needed).
 
-Cách dùng:
+Usage:
     python training/train.py --product ten_san_pham
 
-Yêu cầu trước: đã bỏ sẵn ảnh tốt vào data/raw/ten_san_pham/good/
-(khuyên dùng tối thiểu 20-30 ảnh, càng nhiều càng ổn định).
+Prerequisite: good images already placed in data/raw/ten_san_pham/good/
+(recommended minimum 20-30 images, more is more stable).
 
-Cờ --offline-test dùng để kiểm thử code khi KHÔNG có mạng để tải pretrained
-weights (dùng backbone khởi tạo ngẫu nhiên) — KHÔNG dùng cờ này cho production,
-vì kết quả sẽ không chính xác.
+The --offline-test flag is for testing the code when there is NO internet
+access to download pretrained weights (uses a randomly-initialized backbone
+instead) — do NOT use this flag for production, results will be inaccurate.
 """
 import argparse
 import json

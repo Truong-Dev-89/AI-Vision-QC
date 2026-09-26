@@ -1,21 +1,24 @@
 """
-API tối thiểu phục vụ dây chuyền: kiểm tra ảnh + ghi nhận phản hồi để tự học.
+Minimal API serving the production line: inspect images + record feedback
+for the self-learning loop.
 
-Chạy thử:
+Run:
     uvicorn api.app:app --reload --port 8000
 
-Endpoint chính:
-    POST /inspect/{product_id}              — tải ảnh lên (kèm form field 'serial'
-                                               là mã SN quét từ máy quét mã vạch/QR),
-                                               trả kết quả kiểm tra
-    POST /feedback/{product_id}/{image_id}  — xác nhận đúng/sai cho 1 ảnh đã kiểm tra
-    GET  /products                          — danh sách sản phẩm đã có cấu hình
+Main endpoints:
+    POST /inspect/{product_id}              — upload an image (with a form
+                                               field 'serial', the barcode/QR
+                                               scanned serial number), returns
+                                               the inspection result
+    POST /feedback/{product_id}/{image_id}  — confirm whether a past
+                                               inspection was right or wrong
+    GET  /products                          — list of products that have a config
 
-Khi kết quả là suspect/reject:
-    - ảnh gốc lưu vào data/raw/<product_id>/suspect/  (dữ liệu để retrain sau)
-    - ảnh đã khoanh đỏ vùng lỗi lưu vào
+When the result is suspect/reject:
+    - the original image is saved to data/raw/<product_id>/suspect/ (training data for later)
+    - the annotated (red-boxed) image is saved to
       data/logs/ng_images/<product_id>/<YYYY-MM-DD>/<SN>.jpg
-    - log tra cứu theo ngày ghi vào data/logs/ng_log/<product_id>/<YYYY-MM-DD>.csv
+    - a daily lookup log is appended to data/logs/ng_log/<product_id>/<YYYY-MM-DD>.csv
 """
 import base64
 import io
@@ -41,10 +44,10 @@ from src.utils.config import list_products, load_product_config, resolve_path
 
 app = FastAPI(title="Vision QC API")
 
-# --- Xác thực API key ---
-# Chỉ cần thiết khi máy chủ này được nhiều trạm khác trong mạng gọi vào.
-# Nếu chỉ chạy 1 mình trên máy của bạn (127.0.0.1), khóa này ít quan trọng
-# hơn, nhưng vẫn nên bật để tránh phần mềm khác vô tình gọi nhầm.
+# --- API key authentication ---
+# Only strictly necessary once this server is called by multiple stations
+# over the network. If you only ever run it alone on 127.0.0.1, this key
+# matters less, but it's still good practice to keep it enabled.
 _KEY_FILE = Path(__file__).resolve().parents[1] / ".api_key"
 
 
@@ -74,9 +77,9 @@ def verify_api_key(x_api_key: str | None = Header(None)) -> None:
 
 _AUTH = [Depends(verify_api_key)]
 
-# Cho phép giao diện web (dashboard/) gọi API dù mở từ địa chỉ khác trên cùng
-# mạng nội bộ nhà máy. Nếu triển khai ra ngoài internet, nên giới hạn lại
-# allow_origins thay vì để "*".
+# Lets the web UI (dashboard/) call the API even when opened from another
+# address on the same factory network. If deploying beyond the internal
+# network, restrict allow_origins instead of leaving it as "*".
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -86,6 +89,13 @@ app.add_middleware(
 
 _DASHBOARD_DIR = Path(__file__).resolve().parents[1] / "dashboard"
 app.mount("/ui", StaticFiles(directory=str(_DASHBOARD_DIR), html=True), name="ui")
+
+
+@app.get("/")
+async def root():
+    """Redirect anyone hitting the bare root URL to the actual UI at /ui/."""
+    from fastapi.responses import RedirectResponse
+    return RedirectResponse(url="/ui/")
 _engines: dict[str, PatchCoreEngine] = {}
 
 
@@ -101,7 +111,7 @@ def get_engine(product_id: str) -> tuple[PatchCoreEngine, dict]:
 
 @app.post("/inspect/{product_id}", dependencies=_AUTH)
 async def inspect(product_id: str, file: UploadFile = File(...),
-                   serial: str | None = Form(None, description="Mã SN quét từ máy quét mã vạch/QR")):
+                   serial: str | None = Form(None, description="Serial number scanned from a barcode/QR scanner")):
     engine, cfg = get_engine(product_id)
     raw = await file.read()
     image = Image.open(io.BytesIO(raw))
@@ -150,17 +160,19 @@ async def submit_feedback(product_id: str, image_id: str, is_good: bool):
 
 @app.post("/return-scan/{product_id}", dependencies=_AUTH)
 async def return_scan(product_id: str, file: UploadFile = File(...),
-                       serial: str = Form(..., description="Mã SN của hàng bị khách trả về")):
+                       serial: str = Form(..., description="Serial number of the unit returned by the customer")):
     """
-    Quét lại hàng bị khách trả về, đối chiếu với lần quét xuất hàng theo mã SN.
+    Re-scan a unit returned by a customer and cross-check it against its
+    outbound (shipment-time) scan by serial number.
 
-    - Lúc xuất hàng AI báo 'pass' nhưng lần quét trả về này lại phát hiện lỗi
-      -> bằng chứng rõ ràng đây là lỗi bị bỏ sót thật (escape). Tự động thêm
-      vào dữ liệu lỗi đã xác nhận, ưu tiên cao cho lần retrain tiếp theo.
-    - Lần quét trả về vẫn không thấy gì bất thường -> KHÔNG tự động gán nhãn,
-      vì đây có thể là lỗi chức năng (camera không thấy được) hoặc hư hỏng
-      phát sinh khi vận chuyển, không phải lỗi từ lúc sản xuất. Cần người
-      xác nhận qua POST /feedback nếu muốn đưa vào dữ liệu.
+    - If the AI said 'pass' at shipment but this return scan detects a
+      defect -> clear evidence the model missed a real defect (an escape).
+      Automatically added to confirmed defect data, high priority for the
+      next retraining run.
+    - If the return scan still looks fine -> do NOT auto-label anything,
+      since this could be a non-visual (functional) defect or damage that
+      happened during shipping, not a manufacturing defect. A human should
+      confirm via POST /feedback before it's added to the dataset.
     """
     engine, cfg = get_engine(product_id)
     raw = await file.read()
@@ -187,7 +199,7 @@ async def return_scan(product_id: str, file: UploadFile = File(...),
     }
 
     if original is None:
-        response["note"] = "Không tìm thấy lần quét xuất hàng của mã SN này trong log — không thể tự đối chiếu."
+        response["note"] = "No shipment scan found for this serial number in the log — cannot cross-check automatically."
         return response
 
     escaped = original["decision"] == "pass" and decision.value != "pass"
@@ -197,16 +209,38 @@ async def return_scan(product_id: str, file: UploadFile = File(...),
         annotated = draw_defect_box(image, result["heatmap"], result["grid"], threshold)
         ng_path = ng_logger.save_ng(product_id, annotated, serial, result["score"], threshold, "escaped_defect")
         fb.confirm_feedback(product_id, saved_path, is_good=False)
-        response["action"] = "Tự động thêm vào dữ liệu lỗi đã xác nhận — ưu tiên cao cho lần retrain tới."
+        response["action"] = "Automatically added to confirmed defect data — high priority for the next retraining run."
         response["ng_image_saved_to"] = str(ng_path)
         buf = io.BytesIO()
         annotated.save(buf, format="JPEG", quality=90)
         response["annotated_image_base64"] = base64.b64encode(buf.getvalue()).decode("ascii")
     else:
-        response["action"] = ("Không có bằng chứng lỗi nhìn thấy được. Nếu khách xác nhận sản phẩm thực sự lỗi, "
-                               "dùng POST /feedback để gán nhãn thủ công (khả năng lỗi chức năng hoặc hư hỏng vận chuyển).")
+        response["action"] = ("No visible evidence of a defect. If the customer confirms the unit is genuinely "
+                               "defective, use POST /feedback to label it manually (likely a functional defect "
+                               "or shipping damage).")
 
     return response
+
+
+@app.get("/stats/{product_id}")
+async def get_stats(product_id: str):
+    """Today's inspection counts: total, pass, suspect, reject."""
+    import json as _json
+    from datetime import date
+
+    log_file = resolve_path(f"data/logs/feedback_{product_id}.jsonl")
+    counts = {"pass": 0, "suspect": 0, "reject": 0}
+    today = date.today().isoformat()
+    if log_file.exists():
+        with open(log_file, "r", encoding="utf-8") as f:
+            for line in f:
+                entry = _json.loads(line)
+                if entry.get("time", "").startswith(today):
+                    d = entry.get("decision")
+                    if d in counts:
+                        counts[d] += 1
+    total = sum(counts.values())
+    return {"date": today, "total": total, **counts}
 
 
 @app.get("/products")

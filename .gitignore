@@ -1,29 +1,30 @@
-# Môi trường ảo Python — mỗi máy tự tạo lại bằng requirements.txt
+# Python virtual environment — each machine recreates it from requirements.txt
 venv/
 env/
 __pycache__/
 *.pyc
 
-# Dữ liệu ảnh — thường rất nặng và có thể chứa thông tin nhạy cảm của công ty,
-# không nên đưa lên git. Chia sẻ qua Drive/S3 riêng như đã bàn trước đó.
+# Image data — usually heavy and can contain sensitive company data,
+# should not go on git. Share via Drive/S3 separately as discussed.
 data/raw/*/good/*
 data/raw/*/suspect/*
 data/raw/*/confirmed_ng/*
 data/logs/
 
-# Model đã train — file .pt có thể nặng vài trăm MB, git không hợp để lưu file lớn
+# Trained models — .pt files can be hundreds of MB, git isn't suited for large files
 models/*/v*/
 
-# Giữ lại cấu trúc thư mục (file .gitkeep) dù nội dung bị bỏ qua
+# Keep the folder structure (.gitkeep files) even though their contents are ignored
 !**/.gitkeep
 
-# Khóa xác thực API — tuyệt đối không đẩy lên git, mỗi máy chủ tự sinh 1 khóa riêng
-.api_key
-
+# OS files
 .DS_Store
 Thumbs.db
 
-# File cấu hình cá nhân (nếu có thông tin nhạy cảm như IP nội bộ, mã PLC thật)
-# Bỏ comment dòng dưới nếu bạn KHÔNG muốn đẩy config sản phẩm thật lên git chung
+# API authentication key — never push this to git, each server generates its own
+.api_key
+
+# Personal/sensitive product configs (if they contain real internal IPs, PLC codes, etc.)
+# Uncomment the lines below if you do NOT want to push real product configs to a shared repo
 # configs/products/*.yaml
 # !configs/products/_template.yaml

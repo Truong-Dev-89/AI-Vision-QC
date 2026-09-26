@@ -1,5 +1,4 @@
 # preprocessing/
-
-Crop ảnh theo ROI trong config, căn chỉnh góc nghiêng, chuẩn hóa ánh sáng/màu
-trước khi đưa vào model. Mọi sản phẩm dùng chung hàm, khác nhau ở tham số ROI
-lấy từ file YAML của từng sản phẩm.
+Crops the image to the ROI from the config, corrects tilt, normalizes
+lighting/color before feeding it into the model. Every product shares the
+same functions, differing only in the ROI parameters read from its YAML file.

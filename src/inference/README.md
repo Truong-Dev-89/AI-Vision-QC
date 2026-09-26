@@ -1,5 +1,4 @@
 # inference/
-
-Load model theo product_id, chạy ảnh qua model, trả về điểm bất thường
-(anomaly score) và vị trí vùng nghi ngờ (nếu có). Không tự quyết định đạt/lỗi
-ở đây — việc đó thuộc về decision/.
+Loads the model for a given product_id, runs an image through it, and
+returns the anomaly score plus the suspect region (if any). Does NOT decide
+pass/fail here — that belongs to decision/.

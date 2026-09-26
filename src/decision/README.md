@@ -1,5 +1,5 @@
 # decision/
-
-Nhận điểm bất thường từ inference/, so với threshold trong config, trả về
-1 trong 3 trạng thái: pass | suspect | reject. Log lại mọi quyết định kèm
-product_id, mã lô, điểm số — phục vụ truy vết và feedback loop sau này.
+Takes the anomaly score from inference/, compares it against the config's
+threshold, and returns one of: pass | suspect | reject. Every decision is
+logged with the product_id, serial number, and score — needed for
+traceability and the feedback loop later.

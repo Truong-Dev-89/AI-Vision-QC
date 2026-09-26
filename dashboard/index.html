@@ -3,126 +3,291 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vision QC — Trạm giám sát camera</title>
+<title>Vision QC</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{
-  --bg:#14171a; --panel:#1a1e22; --panel-2:#20262b; --border:#2b3238; --text:#e7eaec; --sub:#8d959c;
-  --accent:#33c2e8; --accent-dim:#1b2c33;
-  --ok:#4fae7c; --ok-bg:#16241c; --warn:#dba13c; --warn-bg:#2b2213; --danger:#e0655a; --danger-bg:#2c1a18;
+  --bg:#0b0d12; --panel:rgba(255,255,255,.045); --panel-solid:#161a22; --border:rgba(255,255,255,.09);
+  --text:#eef0f4; --sub:#8b93a1; --sub2:#5c6472;
+  --grad1:#7c6cf0; --grad2:#33d0d8;
+  --ok:#34d399; --ok-bg:rgba(52,211,153,.12);
+  --warn:#fbbf24; --warn-bg:rgba(251,191,36,.12);
+  --danger:#f87171; --danger-bg:rgba(248,113,113,.13);
   --sans:'Inter',-apple-system,sans-serif; --mono:'IBM Plex Mono',ui-monospace,monospace;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5}
-.shell{max-width:820px;margin:0 auto;padding:20px 18px 60px}
-h1{font-size:19px;font-weight:600;margin:0 0 4px}
-.sub{color:var(--sub);font-size:13px;margin:0 0 18px}
+body{
+  margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);line-height:1.5;
+  background-image:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(124,108,240,.20), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 100% 10%, rgba(51,208,216,.13), transparent 55%);
+  background-attachment:fixed;
+  min-height:100vh;
+}
+.shell{max-width:980px;margin:0 auto;padding:28px 20px 80px}
 
-.tabs{display:flex;gap:6px;margin-bottom:14px}
-.tab{padding:8px 14px;border-radius:6px;border:1px solid var(--border);background:var(--panel);color:var(--sub);font-size:13px;cursor:pointer}
-.tab.active{color:var(--accent);border-color:var(--accent)}
+.topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px;flex-wrap:wrap;gap:10px}
+.brand h1{font-size:20px;font-weight:800;margin:0;background:linear-gradient(120deg,var(--grad1),var(--grad2));-webkit-background-clip:text;background-clip:text;color:transparent;letter-spacing:-0.02em}
+.livepill{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--sub);border:1px solid var(--border);padding:5px 11px;border-radius:100px;background:var(--panel)}
+.livedot{width:7px;height:7px;border-radius:50%;background:var(--sub2)}
+.livedot.on{background:var(--ok);box-shadow:0 0 8px var(--ok)}
+.iconbtn{width:36px;height:36px;border-radius:10px;border:1px solid var(--border);background:var(--panel);color:var(--sub);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:16px}
+.iconbtn:hover{color:var(--text);border-color:rgba(255,255,255,.2)}
+.topright{display:flex;align-items:center;gap:8px}
+.langsw{display:flex;border:1px solid var(--border);border-radius:100px;overflow:hidden;background:var(--panel)}
+.langsw button{background:none;border:none;color:var(--sub);font-size:11.5px;font-weight:600;padding:6px 10px;border-radius:0;cursor:pointer}
+.langsw button.active{background:linear-gradient(120deg,var(--grad1),var(--grad2));color:#0b0d12}
 
-.row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
-select,input[type=text]{padding:8px 10px;border:1px solid var(--border);border-radius:6px;background:var(--panel);color:var(--text);font-size:13px;font-family:var(--sans)}
-select{min-width:160px}
-input[type=text]{flex:1;min-width:160px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:18px}
+.stat{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:14px 16px;backdrop-filter:blur(20px)}
+.stat .num{font-size:24px;font-weight:800;letter-spacing:-0.02em}
+.stat .lbl{font-size:12px;color:var(--sub);margin-top:2px}
+.stat.total .num{background:linear-gradient(120deg,var(--grad1),var(--grad2));-webkit-background-clip:text;background-clip:text;color:transparent}
+.stat.ok .num{color:var(--ok)} .stat.warn .num{color:var(--warn)} .stat.bad .num{color:var(--danger)}
+@media (max-width:600px){.stats{grid-template-columns:repeat(2,1fr)}}
 
-.panel{background:var(--panel);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:14px}
-.camwrap{position:relative;width:100%;max-width:420px;aspect-ratio:4/3;background:#000;border-radius:8px;overflow:hidden;border:1px solid var(--border)}
-video,canvas,#resultImg{width:100%;height:100%;object-fit:cover;display:block}
-canvas{display:none}
-.camoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:13px;text-align:center;padding:20px}
+.tabs{display:flex;gap:8px;margin-bottom:16px}
+.tab{padding:9px 16px;border-radius:11px;border:1px solid var(--border);background:var(--panel);color:var(--sub);font-size:13.5px;font-weight:500;cursor:pointer;transition:.15s}
+.tab.active{color:#fff;border-color:transparent;background:linear-gradient(120deg,var(--grad1),var(--grad2))}
 
-button{background:var(--accent);color:var(--bg);border:none;border-radius:6px;padding:9px 15px;font-size:13px;font-weight:500;cursor:pointer;font-family:var(--sans)}
-button.ghost{background:transparent;color:var(--text);border:1px solid var(--border)}
-button:disabled{opacity:.4;cursor:default}
+.main{display:grid;grid-template-columns:1.1fr 1fr;gap:16px}
+@media (max-width:760px){.main{grid-template-columns:1fr}}
 
-.result{padding:12px 14px;border-radius:6px;font-size:14px;margin-top:12px}
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:18px;padding:18px;backdrop-filter:blur(20px)}
+
+.camwrap{position:relative;width:100%;aspect-ratio:4/3;background:#000;border-radius:14px;overflow:hidden;border:1px solid var(--border)}
+.camwrap.scanning{border-color:transparent;box-shadow:0 0 0 2px var(--grad2), 0 0 24px rgba(51,208,216,.4)}
+video,#resultImg{width:100%;height:100%;object-fit:cover;display:block}
+.camoff{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--sub);font-size:13px;text-align:center;padding:20px;background:rgba(0,0,0,.3)}
+.scanline{position:absolute;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--grad2),transparent);top:0;animation:sweep 1.1s ease-in-out infinite;pointer-events:none}
+@keyframes sweep{0%{top:2%}50%{top:96%}100%{top:2%}}
+@media (prefers-reduced-motion: reduce){.scanline{animation:none;top:50%}}
+
+.camrow{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+select,input[type=text]{padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:rgba(255,255,255,.03);color:var(--text);font-size:13.5px;font-family:var(--sans)}
+select{min-width:150px}
+input[type=text]{flex:1;min-width:150px}
+
+button{background:linear-gradient(120deg,var(--grad1),var(--grad2));color:#0b0d12;border:none;border-radius:11px;padding:11px 18px;font-size:13.5px;font-weight:700;cursor:pointer;transition:transform .1s}
+button:active{transform:scale(.97)}
+button.ghost{background:transparent;color:var(--text);border:1px solid var(--border);font-weight:500}
+button.big{width:100%;padding:14px;font-size:14.5px;margin-top:12px}
+button:disabled{opacity:.35;cursor:default;transform:none}
+
+.formrow{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.formrow label{font-size:12px;color:var(--sub);margin-bottom:-4px}
+
+.result{padding:14px 16px;border-radius:12px;font-size:14.5px;font-weight:600;margin-top:4px}
 .result.ok{background:var(--ok-bg);color:var(--ok)}
 .result.warn{background:var(--warn-bg);color:var(--warn)}
 .result.bad{background:var(--danger-bg);color:var(--danger)}
-.score{font-family:var(--mono);font-size:11.5px;color:var(--sub);display:block;margin-top:4px}
+.result .meta{display:block;font-family:var(--mono);font-size:11px;font-weight:400;color:var(--sub);margin-top:5px}
 
 .fbrow{display:flex;gap:8px;margin-top:10px;align-items:center}
-.feed{font-family:var(--mono);font-size:11.5px;border-top:1px solid var(--border);margin-top:14px;padding-top:10px;max-height:180px;overflow-y:auto}
-.feed .r{display:flex;justify-content:space-between;gap:10px;padding:3px 0;color:var(--sub)}
-.status{font-family:var(--mono);font-size:11.5px;color:var(--sub);margin-top:8px}
-.hint{font-size:12px;color:var(--sub);margin-top:6px}
+.fbrow span{font-size:12.5px;color:var(--sub)}
+
+.gallery{display:flex;gap:10px;overflow-x:auto;padding:4px 2px 8px}
+.gcard{flex:0 0 auto;width:96px}
+.gcard img{width:96px;height:96px;object-fit:cover;border-radius:10px;border:2px solid var(--border)}
+.gcard.ok img{border-color:var(--ok)} .gcard.warn img{border-color:var(--warn)} .gcard.bad img{border-color:var(--danger)}
+.gcard .t{font-size:10px;color:var(--sub2);text-align:center;margin-top:4px;font-family:var(--mono)}
+.emptyhint{color:var(--sub2);font-size:12.5px;padding:20px 4px;text-align:center}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:50;backdrop-filter:blur(4px)}
+.modal-bg.show{display:flex}
+.modal{background:var(--panel-solid);border:1px solid var(--border);border-radius:16px;padding:22px;width:100%;max-width:380px}
+.modal h3{margin:0 0 4px;font-size:16px}
+.modal p{color:var(--sub);font-size:12.5px;margin:0 0 16px}
+.modal .close{float:right;cursor:pointer;color:var(--sub)}
+
+.toasts{position:fixed;bottom:20px;right:20px;display:flex;flex-direction:column;gap:8px;z-index:60}
+.toast{background:var(--panel-solid);border:1px solid var(--border);border-radius:10px;padding:11px 16px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.4);max-width:280px;animation:toastin .2s ease}
+@keyframes toastin{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
 </style>
 </head>
 <body>
 <div class="shell">
-  <h1>Vision QC — Trạm giám sát camera</h1>
-  <p class="sub">Kết nối trực tiếp với webcam/camera, gọi thẳng API đang chạy tại <span id="apiBase" style="font-family:var(--mono)"></span></p>
-
-  <div class="panel" id="authPanel">
-    <div class="row">
-      <input type="text" id="apiKeyInput" placeholder="API key của trạm (xem trong terminal chạy server)" style="flex:1">
-      <button class="ghost" onclick="saveApiKey()">Lưu khóa</button>
+  <div class="topbar">
+    <div class="brand"><h1>Vision QC</h1></div>
+    <div class="topright">
+      <div class="langsw" id="langsw">
+        <button data-lang="vi">VI</button><button data-lang="zh">中文</button><button data-lang="en">EN</button>
+      </div>
+      <div class="livepill"><span class="livedot" id="liveDot"></span><span id="liveText">–</span></div>
+      <div class="iconbtn" onclick="openSettings()" title="Settings">⚙</div>
     </div>
-    <p class="hint">Khóa này chỉ cần nhập 1 lần trên mỗi trình duyệt — được lưu lại cho lần sau.</p>
+  </div>
+
+  <div class="stats">
+    <div class="stat total"><div class="num" id="statTotal">–</div><div class="lbl" data-i18n="statTotal"></div></div>
+    <div class="stat ok"><div class="num" id="statPass">–</div><div class="lbl" data-i18n="statPass"></div></div>
+    <div class="stat warn"><div class="num" id="statSuspect">–</div><div class="lbl" data-i18n="statSuspect"></div></div>
+    <div class="stat bad"><div class="num" id="statReject">–</div><div class="lbl" data-i18n="statReject"></div></div>
   </div>
 
   <div class="tabs">
-    <div class="tab active" id="tabInspect" onclick="switchTab('inspect')">Kiểm tra xuất hàng</div>
-    <div class="tab" id="tabReturn" onclick="switchTab('return')">Quét hàng trả về</div>
+    <div class="tab active" id="tabInspect" onclick="switchTab('inspect')" data-i18n="tabInspect"></div>
+    <div class="tab" id="tabReturn" onclick="switchTab('return')" data-i18n="tabReturn"></div>
   </div>
 
-  <div class="panel">
-    <div class="row">
-      <select id="productSelect"></select>
-      <input type="text" id="serialInput" placeholder="Mã SN (quét mã vạch/QR hoặc gõ tay)">
-    </div>
-    <div class="row">
-      <select id="cameraSelect" style="display:none"></select>
+  <div class="main">
+    <div class="panel">
+      <div class="camwrap" id="camwrap">
+        <video id="video" autoplay playsinline></video>
+        <img id="resultImg" style="display:none">
+        <div class="camoff" id="camoff" data-i18n="camoff"></div>
+      </div>
+      <canvas id="captureCanvas" style="display:none"></canvas>
+      <div class="camrow">
+        <button class="ghost" id="btnCam" onclick="toggleCamera()" data-i18n="camOn"></button>
+        <select id="cameraSelect" style="display:none"></select>
+        <button class="ghost" id="btnReset" onclick="resetView()" style="display:none" data-i18n="reset"></button>
+      </div>
     </div>
 
-    <div class="camwrap" id="camwrap">
-      <video id="video" autoplay playsinline></video>
-      <canvas id="canvas"></canvas>
-      <img id="resultImg" style="display:none">
-      <div class="camoff" id="camoff">Bấm "Bật camera" để bắt đầu</div>
-    </div>
-    <canvas id="captureCanvas" style="display:none"></canvas>
-
-    <div class="row" style="margin-top:10px">
-      <button class="ghost" id="btnCam" onclick="toggleCamera()">Bật camera</button>
-      <button id="btnShot" onclick="captureAndCheck()" disabled>Chụp & Kiểm tra</button>
-      <button class="ghost" id="btnReset" onclick="resetView()" style="display:none">Chụp ảnh khác</button>
-    </div>
-    <p class="hint">Trình duyệt sẽ hỏi quyền dùng camera — bấm "Cho phép".</p>
-
-    <div id="resultBox"></div>
-    <div class="fbrow" id="feedbackRow" style="display:none">
-      <span style="font-size:12.5px;color:var(--sub)">AI đúng chưa?</span>
-      <button class="ghost" onclick="sendFeedback(true)">Tốt</button>
-      <button class="ghost" onclick="sendFeedback(false)">Lỗi</button>
+    <div class="panel">
+      <div class="formrow">
+        <div>
+          <label data-i18n="product"></label>
+          <select id="productSelect" style="width:100%"></select>
+        </div>
+        <div>
+          <label data-i18n="serial"></label>
+          <input type="text" id="serialInput" style="width:100%">
+        </div>
+      </div>
+      <button class="big" id="btnShot" onclick="captureAndCheck()" disabled data-i18n="capture"></button>
+      <div id="resultBox"></div>
+      <div class="fbrow" id="feedbackRow" style="display:none">
+        <span data-i18n="fbPrompt"></span>
+        <button class="ghost" onclick="sendFeedback(true)" data-i18n="fbGood"></button>
+        <button class="ghost" onclick="sendFeedback(false)" data-i18n="fbBad"></button>
+      </div>
     </div>
   </div>
 
-  <div class="panel">
-    <div class="status" id="statusLine">đang kết nối...</div>
-    <div class="feed" id="history"></div>
+  <div class="panel" style="margin-top:16px">
+    <label style="font-size:12px;color:var(--sub);display:block;margin-bottom:8px" data-i18n="history"></label>
+    <div class="gallery" id="gallery"><div class="emptyhint" data-i18n="historyEmpty"></div></div>
   </div>
 </div>
 
-<script>
-const API_BASE = window.location.origin;
-document.getElementById('apiBase').textContent = API_BASE;
-document.getElementById('apiKeyInput').value = localStorage.getItem('vqc_api_key') || '';
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <span class="close" onclick="closeSettings()">✕</span>
+    <h3 data-i18n="settingsTitle"></h3>
+    <p data-i18n="settingsDesc"></p>
+    <div class="formrow">
+      <input type="text" id="apiKeyInput" data-i18n-ph="settingsPlaceholder">
+    </div>
+    <button class="big" onclick="saveApiKey()" data-i18n="settingsSave"></button>
+  </div>
+</div>
 
-function saveApiKey(){
-  localStorage.setItem('vqc_api_key', document.getElementById('apiKeyInput').value.trim());
-  document.getElementById('statusLine').textContent = 'đã lưu khóa — thử chụp ảnh để kiểm tra';
+<div class="toasts" id="toasts"></div>
+
+<script>
+/* ---------- i18n ---------- */
+const STR = {
+  vi:{ connecting:'đang kết nối', connected:'{0} sản phẩm sẵn sàng', noConn:'Không kết nối được API',
+    statTotal:'Tổng kiểm tra hôm nay', statPass:'Đạt', statSuspect:'Nghi ngờ', statReject:'Lỗi',
+    tabInspect:'Kiểm tra xuất hàng', tabReturn:'Quét hàng trả về',
+    camOn:'Bật camera', camOff:'Tắt camera', camoff:'Bấm "Bật camera" để bắt đầu', reset:'Chụp ảnh khác',
+    product:'Sản phẩm', serial:'Mã SN', serialPh:'Quét mã vạch/QR hoặc gõ tay', noProduct:'Chưa có sản phẩm',
+    capture:'Chụp & Kiểm tra', fbPrompt:'AI đúng chưa?', fbGood:'Tốt', fbBad:'Lỗi',
+    history:'Lịch sử gần đây', historyEmpty:'Chưa có lần kiểm tra nào trong phiên này.',
+    settingsTitle:'Cài đặt trạm', settingsDesc:'API key cần khớp với server đang chạy — xem trong terminal lúc khởi động.',
+    settingsPlaceholder:'Dán API key vào đây', settingsSave:'Lưu & kiểm tra kết nối', savedKey:'Đã lưu API key — đang kiểm tra kết nối...',
+    noProductToast:'Chưa có sản phẩm nào — train model trước.', noSerialReturn:'Quét hàng trả về cần có mã SN để đối chiếu.',
+    camError:'Không mở được camera. Kiểm tra quyền truy cập và các app khác đang dùng camera.',
+    genericError:'Lỗi: {0}', fbSentGood:'Đã xác nhận Tốt — thêm vào dữ liệu học', fbSentBad:'Đã xác nhận Lỗi — thêm vào dữ liệu học',
+    fbFailed:'Không gửi được phản hồi.',
+    rPass:'Đạt', rSuspect:'Nghi ngờ — nên kiểm tra thủ công', rReject:'Lỗi rõ — đã khoanh vùng',
+    scoreLine:'điểm {0} / ngưỡng {1}', snSuffix:' · SN {0}', atShip:' · lúc xuất: {0}',
+    rNoRecord:'Không tìm thấy log xuất hàng của SN này', rEscaped:'Bỏ sót lỗi lúc xuất hàng — đã tự học', rNoEvidence:'Không phát hiện lỗi ở lần quét này',
+    returnLabel:'Trả về · {0}' },
+  en:{ connecting:'connecting...', connected:'{0} products ready', noConn:'Could not connect to API',
+    statTotal:"Today's inspections", statPass:'Pass', statSuspect:'Suspect', statReject:'Reject',
+    tabInspect:'Outbound inspection', tabReturn:'Return scan',
+    camOn:'Turn on camera', camOff:'Turn off camera', camoff:'Click "Turn on camera" to start', reset:'Capture another',
+    product:'Product', serial:'Serial number', serialPh:'Scan barcode/QR or type manually', noProduct:'No products yet',
+    capture:'Capture & Inspect', fbPrompt:'Was the AI right?', fbGood:'Good', fbBad:'Defect',
+    history:'Recent history', historyEmpty:'No inspections yet this session.',
+    settingsTitle:'Station settings', settingsDesc:'The API key must match the running server — check the terminal at startup.',
+    settingsPlaceholder:'Paste API key here', settingsSave:'Save & test connection', savedKey:'API key saved — testing connection...',
+    noProductToast:'No product available yet — train a model first.', noSerialReturn:'Return scan requires a serial number to cross-check.',
+    camError:'Could not open the camera. Check permissions and close other apps using the camera.',
+    genericError:'Error: {0}', fbSentGood:'Confirmed Good — added to training data', fbSentBad:'Confirmed Defect — added to training data',
+    fbFailed:'Could not send feedback.',
+    rPass:'Pass', rSuspect:'Suspect — needs manual check', rReject:'Clear defect — region marked',
+    scoreLine:'score {0} / threshold {1}', snSuffix:' · SN {0}', atShip:' · at shipment: {0}',
+    rNoRecord:'No shipment record found for this serial number', rEscaped:'Defect missed at shipment — auto-learned', rNoEvidence:'No defect detected in this scan',
+    returnLabel:'Return · {0}' },
+  zh:{ connecting:'连接中...', connected:'{0} 个产品已就绪', noConn:'无法连接API',
+    statTotal:'今日检测总数', statPass:'合格', statSuspect:'疑似', statReject:'不合格',
+    tabInspect:'出货检测', tabReturn:'退货扫描',
+    camOn:'开启摄像头', camOff:'关闭摄像头', camoff:'点击"开启摄像头"开始', reset:'重新拍摄',
+    product:'产品', serial:'序列号', serialPh:'扫描条码/二维码或手动输入', noProduct:'暂无产品',
+    capture:'拍照并检测', fbPrompt:'AI判断正确吗?', fbGood:'合格', fbBad:'不合格',
+    history:'最近记录', historyEmpty:'本次会话尚无检测记录。',
+    settingsTitle:'站点设置', settingsDesc:'API密钥须与运行中的服务器一致——请查看启动时的终端输出。',
+    settingsPlaceholder:'在此粘贴API密钥', settingsSave:'保存并测试连接', savedKey:'已保存API密钥——正在测试连接...',
+    noProductToast:'暂无产品——请先训练模型。', noSerialReturn:'退货扫描需要序列号才能比对。',
+    camError:'无法打开摄像头。请检查权限设置，并关闭其他正在使用摄像头的应用。',
+    genericError:'错误：{0}', fbSentGood:'已确认合格——已加入训练数据', fbSentBad:'已确认不合格——已加入训练数据',
+    fbFailed:'反馈发送失败。',
+    rPass:'合格', rSuspect:'疑似——建议人工复检', rReject:'明显缺陷——已标出区域',
+    scoreLine:'得分 {0} / 阈值 {1}', snSuffix:' · 序列号 {0}', atShip:' · 出货时：{0}',
+    rNoRecord:'未找到该序列号的出货记录', rEscaped:'出货时漏检的缺陷——已自动学习', rNoEvidence:'本次扫描未发现缺陷',
+    returnLabel:'退货 · {0}' }
+};
+let LANG = localStorage.getItem('vqc_lang') || 'vi';
+function t(key, ...args){
+  let s = (STR[LANG] && STR[LANG][key]) || key;
+  args.forEach((a,i)=>{ s = s.replace(`{${i}}`, a); });
+  return s;
 }
-function authHeaders(){
-  return {'X-API-Key': localStorage.getItem('vqc_api_key') || ''};
+function applyLang(){
+  document.querySelectorAll('[data-i18n]').forEach(el=>{ el.textContent = t(el.dataset.i18n); });
+  document.getElementById('serialInput').placeholder = t('serialPh');
+  document.getElementById('apiKeyInput').placeholder = t('settingsPlaceholder');
+  document.getElementById('btnCam').textContent = stream ? t('camOff') : t('camOn');
+  document.querySelectorAll('#langsw button').forEach(b=>b.classList.toggle('active', b.dataset.lang===LANG));
 }
+document.getElementById('langsw').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  LANG = b.dataset.lang; localStorage.setItem('vqc_lang', LANG); applyLang();
+});
+
+/* ---------- app state ---------- */
+const API_BASE = window.location.origin;
 let mode = 'inspect';
 let stream = null;
 let lastImageId = null;
 let lastProduct = null;
+
+function toast(msg){
+  const box = document.getElementById('toasts');
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.textContent = msg;
+  box.appendChild(el);
+  setTimeout(()=>el.remove(), 4000);
+}
+
+function openSettings(){
+  document.getElementById('apiKeyInput').value = localStorage.getItem('vqc_api_key') || '';
+  document.getElementById('settingsModal').classList.add('show');
+}
+function closeSettings(){ document.getElementById('settingsModal').classList.remove('show'); }
+async function saveApiKey(){
+  localStorage.setItem('vqc_api_key', document.getElementById('apiKeyInput').value.trim());
+  closeSettings();
+  toast(t('savedKey'));
+  await loadProducts();
+}
+function authHeaders(){ return {'X-API-Key': localStorage.getItem('vqc_api_key') || ''}; }
 
 function switchTab(m){
   mode = m;
@@ -131,168 +296,181 @@ function switchTab(m){
   resetView();
 }
 
+function setLive(on, text){
+  document.getElementById('liveDot').className = 'livedot' + (on?' on':'');
+  document.getElementById('liveText').textContent = text;
+}
+
 async function loadProducts(){
-  const status = document.getElementById('statusLine');
   try{
     const res = await fetch(`${API_BASE}/products`);
     const data = await res.json();
     const sel = document.getElementById('productSelect');
     sel.innerHTML = data.products.length
       ? data.products.map(p=>`<option value="${p}">${p}</option>`).join('')
-      : '<option value="">Chưa có sản phẩm nào</option>';
-    status.textContent = `đã kết nối · ${data.products.length} sản phẩm sẵn sàng`;
-  }catch(e){
-    status.textContent = 'Không kết nối được API — kiểm tra server có đang chạy không.';
-  }
+      : `<option value="">${t('noProduct')}</option>`;
+    setLive(true, t('connected', data.products.length));
+    if(data.products.length) loadStats(data.products[0]);
+  }catch(e){ setLive(false, t('noConn')); }
 }
-loadProducts();
+
+async function loadStats(product){
+  if(!product) return;
+  try{
+    const res = await fetch(`${API_BASE}/stats/${product}`);
+    const d = await res.json();
+    document.getElementById('statTotal').textContent = d.total;
+    document.getElementById('statPass').textContent = d.pass;
+    document.getElementById('statSuspect').textContent = d.suspect;
+    document.getElementById('statReject').textContent = d.reject;
+  }catch(e){}
+}
+document.getElementById('productSelect').addEventListener('change', e=>loadStats(e.target.value));
 
 async function listCameras(){
-  try{
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const cams = devices.filter(d=>d.kind==='videoinput');
-    const sel = document.getElementById('cameraSelect');
-    sel.innerHTML = cams.map((c,i)=>`<option value="${c.deviceId}">${c.label || 'Camera '+(i+1)}</option>`).join('');
-    sel.style.display = cams.length > 1 ? 'inline-block' : 'none';
-    return cams;
-  }catch(e){ return []; }
+  const devices = await navigator.mediaDevices.enumerateDevices();
+  const cams = devices.filter(d=>d.kind==='videoinput');
+  const sel = document.getElementById('cameraSelect');
+  sel.innerHTML = cams.map((c,i)=>`<option value="${c.deviceId}">${c.label||'Camera '+(i+1)}</option>`).join('');
+  sel.style.display = cams.length > 1 ? 'inline-block' : 'none';
+  return cams;
 }
-
 async function startStream(deviceId){
-  const video = document.getElementById('video');
-  const constraints = deviceId
-    ? {video:{deviceId:{exact:deviceId}}, audio:false}
-    : {video:true, audio:false};
+  const constraints = deviceId ? {video:{deviceId:{exact:deviceId}},audio:false} : {video:true,audio:false};
   stream = await navigator.mediaDevices.getUserMedia(constraints);
-  video.srcObject = stream;
+  document.getElementById('video').srcObject = stream;
 }
-
 async function toggleCamera(){
   const btn = document.getElementById('btnCam');
   if(stream){
-    stream.getTracks().forEach(t=>t.stop());
-    stream = null;
-    document.getElementById('video').srcObject = null;
-    btn.textContent = 'Bật camera';
+    stream.getTracks().forEach(t=>t.stop()); stream=null;
+    document.getElementById('video').srcObject=null;
+    btn.textContent=t('camOn');
     document.getElementById('camoff').style.display='flex';
-    document.getElementById('btnShot').disabled = true;
+    document.getElementById('btnShot').disabled=true;
     return;
   }
   try{
-    // Xin quyền trước 1 lần để trình duyệt trả về đủ tên/label camera khi liệt kê,
-    // tránh trường hợp danh sách rỗng do chưa được cấp quyền.
     await startStream(null);
     const cams = await listCameras();
-    if(cams.length > 1){
-      // Nếu có nhiều camera (thường gặp trên laptop có cả camera IR cho Windows Hello),
-      // dừng stream tạm và mở lại đúng camera đầu tiên KHÔNG phải "infrared"/"ir".
-      const preferred = cams.find(c => !/infrared|ir camera/i.test(c.label)) || cams[0];
+    if(cams.length>1){
+      const preferred = cams.find(c=>!/infrared|ir camera/i.test(c.label)) || cams[0];
       stream.getTracks().forEach(t=>t.stop());
       await startStream(preferred.deviceId);
       document.getElementById('cameraSelect').value = preferred.deviceId;
     }
-    btn.textContent = 'Tắt camera';
+    btn.textContent=t('camOff');
     document.getElementById('camoff').style.display='none';
-    document.getElementById('btnShot').disabled = false;
+    document.getElementById('btnShot').disabled=false;
   }catch(e){
-    alert('Không mở được camera. Kiểm tra: (1) đã cho phép quyền camera cho trình duyệt, (2) camera không đang bị app khác dùng, (3) truy cập đúng qua http://127.0.0.1:8000/ui/ chứ không phải địa chỉ IP khác.');
+    toast(t('camError'));
   }
 }
-
-document.getElementById('cameraSelect').addEventListener('change', async (e)=>{
+document.getElementById('cameraSelect').addEventListener('change', async e=>{
   if(!stream) return;
   stream.getTracks().forEach(t=>t.stop());
   await startStream(e.target.value);
 });
 
 function resetView(){
-  document.getElementById('video').style.display = stream ? 'block' : 'block';
-  document.getElementById('resultImg').style.display = 'none';
-  document.getElementById('resultBox').innerHTML = '';
-  document.getElementById('feedbackRow').style.display = 'none';
-  document.getElementById('btnReset').style.display = 'none';
-  if(stream) document.getElementById('btnShot').disabled = false;
+  document.getElementById('resultImg').style.display='none';
+  document.getElementById('video').style.display='block';
+  document.getElementById('resultBox').innerHTML='';
+  document.getElementById('feedbackRow').style.display='none';
+  document.getElementById('btnReset').style.display='none';
+  document.getElementById('camwrap').classList.remove('scanning');
+  if(stream) document.getElementById('btnShot').disabled=false;
 }
 
 async function captureAndCheck(){
   const product = document.getElementById('productSelect').value;
-  if(!product){ alert('Chưa có sản phẩm nào — vào README để train model trước.'); return; }
+  if(!product){ toast(t('noProductToast')); return; }
   const serial = document.getElementById('serialInput').value.trim();
-  if(mode === 'return' && !serial){ alert('Quét hàng trả về bắt buộc phải có mã SN để đối chiếu.'); return; }
+  if(mode==='return' && !serial){ toast(t('noSerialReturn')); return; }
 
   const video = document.getElementById('video');
   const cv = document.getElementById('captureCanvas');
   cv.width = video.videoWidth; cv.height = video.videoHeight;
-  cv.getContext('2d').drawImage(video, 0, 0);
+  cv.getContext('2d').drawImage(video,0,0);
 
-  document.getElementById('statusLine').textContent = 'đang phân tích...';
+  const camwrap = document.getElementById('camwrap');
+  camwrap.classList.add('scanning');
+  const line = document.createElement('div'); line.className='scanline'; line.id='scanline';
+  camwrap.appendChild(line);
   document.getElementById('btnShot').disabled = true;
 
-  cv.toBlob(async (blob)=>{
+  cv.toBlob(async blob=>{
     const form = new FormData();
     form.append('file', blob, 'capture.jpg');
     if(serial) form.append('serial', serial);
-    const endpoint = mode === 'inspect'
-      ? `${API_BASE}/inspect/${product}`
-      : `${API_BASE}/return-scan/${product}`;
+    const endpoint = mode==='inspect' ? `${API_BASE}/inspect/${product}` : `${API_BASE}/return-scan/${product}`;
     try{
-      const res = await fetch(endpoint, {method:'POST', body: form, headers: authHeaders()});
+      const res = await fetch(endpoint, {method:'POST', body:form, headers:authHeaders()});
       const data = await res.json();
-      if(!res.ok){ throw new Error(data.detail || 'Lỗi không xác định'); }
-      showResult(data);
+      if(!res.ok) throw new Error(data.detail || 'Unknown error');
+      showResult(data, cv.toDataURL('image/jpeg',0.7));
+      loadStats(product);
     }catch(e){
-      document.getElementById('resultBox').innerHTML = `<div class="result bad">Lỗi: ${e.message}</div>`;
+      toast(t('genericError', e.message));
+      document.getElementById('btnShot').disabled=false;
     }
-    document.getElementById('statusLine').textContent = 'sẵn sàng';
+    document.getElementById('scanline')?.remove();
+    camwrap.classList.remove('scanning');
   }, 'image/jpeg', 0.92);
 }
 
-function showResult(data){
+function showResult(data, capturedThumb){
   lastImageId = data.image_id || null;
   lastProduct = document.getElementById('productSelect').value;
 
   const img = document.getElementById('resultImg');
-  const video = document.getElementById('video');
-  if(data.annotated_image_base64){
-    img.src = 'data:image/jpeg;base64,' + data.annotated_image_base64;
-    img.style.display = 'block';
-    video.style.display = 'none';
-  }
-  document.getElementById('btnReset').style.display = 'inline-block';
-  document.getElementById('btnShot').disabled = true;
+  img.src = data.annotated_image_base64 ? ('data:image/jpeg;base64,'+data.annotated_image_base64) : capturedThumb;
+  img.style.display='block';
+  document.getElementById('video').style.display='none';
+  document.getElementById('btnReset').style.display='inline-block';
 
   const box = document.getElementById('resultBox');
-  if(mode === 'inspect'){
+  let cls='ok', label='', galThumb = img.src;
+
+  if(mode==='inspect'){
     const d = data.decision;
-    const cls = d==='pass' ? 'ok' : (d==='suspect' ? 'warn' : 'bad');
-    const label = d==='pass' ? 'Đạt' : (d==='suspect' ? 'Nghi ngờ — nên kiểm tra thủ công' : 'Lỗi rõ — khoanh vùng như trên');
-    box.innerHTML = `<div class="result ${cls}">${label}<span class="score">điểm ${data.score.toFixed(3)} / ngưỡng ${data.threshold.toFixed(3)}${data.serial?(' · SN '+data.serial):''}</span></div>`;
-    if(d !== 'pass') document.getElementById('feedbackRow').style.display='flex';
-    addHistory(`${data.serial||'(không SN)'} — ${label}`, data.score.toFixed(3));
+    cls = d==='pass'?'ok':(d==='suspect'?'warn':'bad');
+    label = d==='pass' ? t('rPass') : (d==='suspect' ? t('rSuspect') : t('rReject'));
+    const meta = t('scoreLine', data.score.toFixed(3), data.threshold.toFixed(3)) + (data.serial ? t('snSuffix', data.serial) : '');
+    box.innerHTML = `<div class="result ${cls}">${label}<span class="meta">${meta}</span></div>`;
+    if(d!=='pass') document.getElementById('feedbackRow').style.display='flex';
+    addToGallery(galThumb, cls, data.serial || '—');
   } else {
-    let cls='ok', label='Không phát hiện lỗi ở lần quét trả về';
-    if(!data.original_shipment_found){ cls='warn'; label='Không tìm thấy log xuất hàng của SN này'; }
-    else if(data.escaped_defect){ cls='bad'; label='Phát hiện lỗi bị bỏ sót lúc xuất hàng — đã tự động thêm vào dữ liệu học'; }
-    box.innerHTML = `<div class="result ${cls}">${label}<span class="score">SN ${data.serial} · điểm lần này ${data.return_scan_score?.toFixed(3)}${data.original_decision?(' · lúc xuất: '+data.original_decision):''}</span></div>
-      <p class="hint">${data.action||''}</p>`;
-    addHistory(`[Trả về] ${data.serial} — ${label}`, '');
+    if(!data.original_shipment_found){ cls='warn'; label=t('rNoRecord'); }
+    else if(data.escaped_defect){ cls='bad'; label=t('rEscaped'); }
+    else { cls='ok'; label=t('rNoEvidence'); }
+    const meta = t('snSuffix', data.serial).replace(' · ','') + (data.original_decision ? t('atShip', data.original_decision) : '');
+    box.innerHTML = `<div class="result ${cls}">${label}<span class="meta">${meta}</span></div>`;
+    addToGallery(galThumb, cls, t('returnLabel', data.serial));
   }
 }
 
 async function sendFeedback(isGood){
   if(!lastImageId || !lastProduct) return;
   try{
-    await fetch(`${API_BASE}/feedback/${lastProduct}/${lastImageId}?is_good=${isGood}`, {method:'POST', headers: authHeaders()});
+    await fetch(`${API_BASE}/feedback/${lastProduct}/${lastImageId}?is_good=${isGood}`, {method:'POST', headers:authHeaders()});
     document.getElementById('feedbackRow').style.display='none';
-    addHistory(`Phản hồi: ${isGood?'xác nhận Tốt':'xác nhận Lỗi'} cho ảnh vừa rồi`, '');
-  }catch(e){ alert('Không gửi được phản hồi.'); }
+    toast(isGood ? t('fbSentGood') : t('fbSentBad'));
+  }catch(e){ toast(t('fbFailed')); }
 }
 
-function addHistory(text, score){
-  const el = document.getElementById('history');
-  const time = new Date().toLocaleTimeString();
-  el.innerHTML = `<div class="r"><span>${text}</span><span>${time}</span></div>` + el.innerHTML;
+function addToGallery(thumb, cls, label){
+  const gal = document.getElementById('gallery');
+  if(gal.querySelector('.emptyhint')) gal.innerHTML='';
+  const card = document.createElement('div');
+  card.className = 'gcard ' + cls;
+  const time = new Date().toLocaleTimeString().slice(0,5);
+  card.innerHTML = `<img src="${thumb}"><div class="t">${label}<br>${time}</div>`;
+  gal.insertBefore(card, gal.firstChild);
 }
+
+applyLang();
+loadProducts();
 </script>
 </body>
 </html>

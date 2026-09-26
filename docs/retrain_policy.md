@@ -1,16 +1,17 @@
-# Quy trình retrain an toàn (tránh model mới tệ hơn model cũ)
+# Safe Retraining Procedure (avoiding a new model that's worse than the old one)
 
-1. Model mới train xong lưu vào `models/<product_id>/v<n+1>/`, KHÔNG ghi đè
-   `models/<product_id>/v<n>/` đang chạy production.
-2. Chạy `training/evaluate.py` so sánh model mới với model cũ trên tập dữ liệu
-   `confirmed_ng/` + `good/` mới nhất.
-3. Chỉ chuyển sang model mới khi: escape rate (bỏ sót lỗi) không tăng VÀ
-   false positive rate không tăng đáng kể.
-4. Cập nhật `model.path` trong file config của sản phẩm sang version mới.
-5. Giữ lại ít nhất 2 version gần nhất để rollback nếu phát hiện vấn đề sau
-   khi lên production.
+1. A newly trained model is saved to `models/<product_id>/v<n+1>/` — it does
+   NOT overwrite `models/<product_id>/v<n>/`, which is the one currently in production.
+2. Run `training/evaluate.py` to compare the new model against the old one on
+   the latest `confirmed_ng/` + `good/` data.
+3. Only switch to the new model when: the escape rate (missed defects) does
+   not increase AND the false positive rate does not increase significantly.
+4. Update `model.path` in the product's config file to point to the new version.
+5. Keep at least the last 2 versions around so you can roll back if a problem
+   is found after going to production.
 
-## Ưu tiên dữ liệu khi retrain
-Dữ liệu từ hàng bị khách trả về (false negative thật) luôn được ưu tiên
-đưa vào tập train trước, vì đây là loại lỗi có tác động kinh doanh trực tiếp
-nhất — xem lại mục tiêu ban đầu: giảm hàng NG lọt ra ngoài đến khách hàng.
+## Data priority when retraining
+Data from units returned by customers (real false negatives) is always
+prioritized first for the training set, because this is the type of defect
+with the most direct business impact — recall the original goal: reducing
+defective units that reach the customer.

@@ -1,4 +1,3 @@
 # utils/
-
-Hàm dùng chung: đọc/ghi config YAML, logging chuẩn hóa, xử lý đường dẫn
-theo product_id. Tránh lặp code giữa các module khác.
+Shared helper functions: reading/writing YAML configs, standardized logging,
+path handling by product_id. Avoids duplicating code across other modules.

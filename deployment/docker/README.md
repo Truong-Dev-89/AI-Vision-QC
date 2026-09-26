@@ -1,4 +1,3 @@
 # docker/
-
-Đóng gói toàn bộ hệ thống (api + inference) thành container để triển khai
-nhất quán giữa các nhà máy/dây chuyền khác nhau.
+Packages the whole system (api + inference) into a container for consistent
+deployment across different factories/production lines.

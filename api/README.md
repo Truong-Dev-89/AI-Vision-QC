@@ -1,4 +1,3 @@
 # api/
-
-REST API phục vụ inference real-time cho dây chuyền và cho dashboard.
-Endpoint tối thiểu: POST /inspect/<product_id> nhận ảnh, trả kết quả.
+Real-time inspection REST API for the production line and the dashboard.
+Minimum endpoint: POST /inspect/<product_id> takes an image, returns the result.

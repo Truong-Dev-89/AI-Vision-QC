@@ -1,7 +1,8 @@
-"""Quy đổi điểm bất thường (anomaly score) thành quyết định pass/suspect/reject.
+"""Turn an anomaly score into a pass/suspect/reject decision.
 
-Nguyên tắc: bỏ sót lỗi (false negative) tốn kém hơn nhiều so với kiểm tra nhầm
-hàng tốt, nên vùng "suspect" luôn được ưu tiên hơn là cho qua thẳng.
+Principle: missing a real defect (false negative) is far more costly than
+double-checking a good item, so the "suspect" zone is always preferred over
+letting a borderline item through automatically.
 """
 from enum import Enum
 
@@ -15,7 +16,7 @@ class Decision(str, Enum):
 def decide(score: float, threshold: float, suspect_margin: float = 0.15) -> Decision:
     """
     score <= threshold                          -> PASS
-    threshold < score <= threshold*(1+margin)   -> SUSPECT (đưa người kiểm tra)
+    threshold < score <= threshold*(1+margin)   -> SUSPECT (route to a human)
     score > threshold*(1+margin)                -> REJECT
     """
     if score <= threshold:

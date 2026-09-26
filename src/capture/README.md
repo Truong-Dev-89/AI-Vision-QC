@@ -1,4 +1,3 @@
 # capture/
-
-Giao tiếp với camera/webcam, nhận tín hiệu trigger từ băng chuyền hoặc PLC,
-trả về ảnh thô. Không xử lý logic AI ở đây — chỉ lấy ảnh.
+Interfaces with the camera/webcam and receives trigger signals from the
+conveyor or PLC, returning raw images. No AI logic here — image acquisition only.

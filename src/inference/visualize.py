@@ -1,13 +1,14 @@
-"""Khoanh vùng nghi ngờ/lỗi lên ảnh gốc, để người kiểm tra thấy ngay AI đang
-nghi ngờ ở đâu — không chỉ có điểm số."""
+"""Draw the suspected/defective region onto the original image, so the
+inspector can see at a glance where the AI is suspicious — not just a score."""
 from __future__ import annotations
 from PIL import Image, ImageDraw
 
 
 def draw_defect_box(image: Image.Image, heatmap: list[list[float]] | None, grid: int,
                      threshold: float, color=(224, 60, 50), width: int = 4) -> Image.Image:
-    """Khung đỏ đậm = vùng lệch nhiều nhất (nguyên nhân chính bị đánh giá NG).
-    Khung vàng mảnh = vùng khác cũng vượt ngưỡng nhưng không phải nặng nhất."""
+    """Solid red box = the single worst-matching region (main reason for the
+    NG verdict). Thin yellow box = another region also over threshold, but
+    not the worst one."""
     if not heatmap:
         return image.convert("RGB")
     annotated = image.convert("RGB").copy()
